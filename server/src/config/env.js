@@ -13,6 +13,7 @@ export const env = {
   port: Number(process.env.PORT || 3001),
   host: process.env.HOST || "127.0.0.1",
   databaseUrl: process.env.DATABASE_URL,
+  databaseUrlUnpooled: process.env.DATABASE_URL_UNPOOLED,
   schema: process.env.DB_SCHEMA || "public",
   production: process.env.NODE_ENV === "production",
   seedDemo: process.env.SEED_DEMO !== "false",

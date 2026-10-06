@@ -4,6 +4,38 @@ import buildGraph from "../../server/src/algorithms/buildGraph.js";
 import dijkstra from "../../server/src/algorithms/dijkstra.js";
 import { routeToLocation } from "../../server/src/services/pathfindingService.js";
 import { fitsLocation } from "../../server/src/algorithms/storageScoring.js";
+import {
+  directDatabaseUrl,
+  postgresPoolConfig,
+} from "../../server/src/config/postgres.js";
+test("Neon pooled requests omit unsupported startup options and migrations use direct connections", () => {
+  const pooled =
+    "postgresql://user:example@ep-test-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require";
+  const direct = directDatabaseUrl(pooled);
+  assert.equal(
+    new URL(direct).hostname,
+    "ep-test.c-4.ap-southeast-1.aws.neon.tech",
+  );
+  assert.equal(new URL(direct).searchParams.get("sslmode"), "require");
+  assert.equal(postgresPoolConfig(pooled).connectionString, pooled);
+  assert.equal("options" in postgresPoolConfig(pooled), false);
+  assert.equal(
+    postgresPoolConfig(pooled, "wsrms_test").connectionString,
+    direct,
+  );
+  assert.equal(
+    postgresPoolConfig(pooled, "wsrms_test").options,
+    "-c search_path=wsrms_test",
+  );
+  assert.equal(
+    directDatabaseUrl("postgresql://localhost/wsrms"),
+    "postgresql://localhost/wsrms",
+  );
+  assert.equal(
+    directDatabaseUrl(pooled, "postgresql://localhost/migrations"),
+    "postgresql://localhost/migrations",
+  );
+});
 const cells = Array.from({ length: 25 }, (_, i) => ({
   id: `${Math.floor(i / 5)}-${i % 5}`,
   row: Math.floor(i / 5),

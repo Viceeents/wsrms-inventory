@@ -8,6 +8,8 @@ Requirements: Node.js **24+**, npm, PostgreSQL **18** (the version tested; the s
 
 Your local `.env` already points to **`wsrms_inventory_db`**. Database credentials are private and excluded from Git.
 
+For Neon on Vercel, `DATABASE_URL` may use the pooled (`-pooler`) endpoint. Normal public-schema requests omit the unsupported `search_path` startup option. Initialization and backups use `DATABASE_URL_UNPOOLED` when provided; otherwise the app derives the direct endpoint from a Neon pooled hostname. Custom schemas use a direct connection. Set connection variables for Vercel's Production environment, then redeploy. Keep local PostgreSQL configuration in `.env` separate from the cloud values in the parent `.env.local`.
+
 ```powershell
 cd C:\warehousemanagement\wsrms
 npm.cmd install

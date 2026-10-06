@@ -2,7 +2,10 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, existsSync } from "node:fs";
 import path from "node:path";
 import { env, root } from "../server/src/config/env.js";
-const url = new URL(env.databaseUrl),
+import { directDatabaseUrl } from "../server/src/config/postgres.js";
+const url = new URL(
+    directDatabaseUrl(env.databaseUrl, env.databaseUrlUnpooled),
+  ),
   directory = path.join(root, ".local/backups");
 mkdirSync(directory, { recursive: true });
 const output = path.join(

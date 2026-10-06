@@ -3,15 +3,13 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { env, root } from "./env.js";
+import { directDatabaseUrl, postgresPoolConfig } from "./postgres.js";
 pg.types.setTypeParser(20, Number);
 if (!/^[a-z][a-z0-9_]*$/.test(env.schema))
   throw new Error("Invalid database schema name.");
-export const pool = new pg.Pool({
-  connectionString: env.databaseUrl,
-  options: `-c search_path=${env.schema}`,
-  max: 10,
-  connectionTimeoutMillis: 5000,
-});
+export const pool = new pg.Pool(
+  postgresPoolConfig(env.databaseUrl, env.schema),
+);
 pool.on("error", () => console.error("PostgreSQL connection interrupted."));
 export const db = { close: () => pool.end() };
 const context = new AsyncLocalStorage();
@@ -35,9 +33,9 @@ export async function run(sql, ...params) {
   const result = await query(sql, params);
   return { changes: result.rowCount, lastInsertRowid: result.rows[0]?.id };
 }
-export async function atomic(fn) {
+export async function atomic(fn, transactionPool = pool) {
   if (context.getStore()) return fn();
-  const client = await pool.connect();
+  const client = await transactionPool.connect();
   try {
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(87654321)");
@@ -68,30 +66,39 @@ export async function initializeDatabase() {
     throw new Error(
       "Set DATABASE_URL in .env. See README.md for PostgreSQL setup.",
     );
-  await atomic(async () => {
-    await query(
-      "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
-    );
-    if (
-      !(await get(
-        "SELECT version FROM schema_migrations WHERE version=?",
-        "002_inventory_cells",
-      ))
-    ) {
+  const directUrl = directDatabaseUrl(env.databaseUrl, env.databaseUrlUnpooled);
+  const migrationPool =
+    directUrl === env.databaseUrl
+      ? pool
+      : new pg.Pool(postgresPoolConfig(directUrl, env.schema));
+  try {
+    await atomic(async () => {
       await query(
-        readFileSync(
-          path.join(root, "database/migrations/002_inventory_cells.sql"),
-          "utf8",
-        ),
+        "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
       );
-      await run(
-        "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
-        "002_inventory_cells",
-        new Date().toISOString(),
-      );
-    }
-    await query(readFileSync(path.join(root, "database/schema.sql"), "utf8"));
-    const { seed } = await import("../../../database/seeds/demo.js");
-    await seed();
-  });
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "002_inventory_cells",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/002_inventory_cells.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "002_inventory_cells",
+          new Date().toISOString(),
+        );
+      }
+      await query(readFileSync(path.join(root, "database/schema.sql"), "utf8"));
+      const { seed } = await import("../../../database/seeds/demo.js");
+      await seed();
+    }, migrationPool);
+  } finally {
+    if (migrationPool !== pool) await migrationPool.end();
+  }
 }
