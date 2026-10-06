@@ -2,6 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
 import app from "../../server/src/app.js";
+import vercelHandler from "../../api/index.js";
 import {
   initializeDatabase,
   db,
@@ -31,6 +32,21 @@ before(async () => {
   warehouse = (await staff.get("/api/warehouse").expect(200)).body;
 });
 after(async () => await db.close());
+test("Vercel entry point initializes the database and preserves API routing", async () => {
+  const results = await Promise.all([
+    request(vercelHandler).get("/api/health").expect(200),
+    request(vercelHandler).get("/api/auth/me").expect(401),
+  ]);
+  assert.deepEqual(results[0].body, { status: "ok" });
+  const visitor = request.agent(vercelHandler);
+  await visitor
+    .post("/api/auth/login")
+    .send({ email: "staff@wsrms.local", password: "Staff@2026" })
+    .expect(200);
+  await visitor.get("/api/warehouse").expect(200);
+  await visitor.post("/api/auth/logout").expect(200);
+});
+
 test("Authentication and staff/admin permissions are enforced", async () => {
   await request(app).get("/api/parcels").expect(401);
   await staff.get("/api/users").expect(403);

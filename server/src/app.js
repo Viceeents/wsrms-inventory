@@ -16,6 +16,7 @@ import reportRoutes from "./routes/reportRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
 import { summary } from "./controllers/reportController.js";
 const app = express();
+if (process.env.VERCEL === "1") app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(
   helmet({

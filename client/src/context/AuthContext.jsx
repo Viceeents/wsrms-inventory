@@ -12,7 +12,9 @@ export default function AuthProvider({ children }) {
       .catch((e) => {
         if (e.status !== 401)
           setError(
-            "Cannot connect to the server. Check PostgreSQL configuration and restart the API.",
+            e.status
+              ? e.message
+              : "Cannot connect to the server. Check your connection and the API deployment.",
           );
       })
       .finally(() => setLoading(false));
