@@ -1,0 +1,29 @@
+name: WSRMS checks
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: wsrms
+          POSTGRES_PASSWORD: ci-password
+          POSTGRES_DB: wsrms_inventory_db
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U wsrms -d wsrms_inventory_db"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://wsrms:ci-password@localhost:5432/wsrms_inventory_db
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:ui

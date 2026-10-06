@@ -1,0 +1,521 @@
+{
+  "info": {
+    "name": "WSRMS · Warehouse operations",
+    "description": "Local API workflows. Sign in first. Cookies are stored automatically. Requests mutate warehouse records; use a development database.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3001/api"
+    },
+    {
+      "key": "parcelId",
+      "value": "1"
+    },
+    {
+      "key": "parcelCode",
+      "value": ""
+    },
+    {
+      "key": "locationId",
+      "value": "1"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "Sign in as administrator",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@wsrms.local\",\n  \"password\": \"Warehouse@2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Current account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Sign in as staff",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"staff@wsrms.local\",\n  \"password\": \"Staff@2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Parcel workflow · run in order",
+      "item": [
+        {
+          "name": "1. Recommend storage",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels/recommendations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tracking_number\": \"POSTMAN-{{$timestamp}}\",\n  \"description\": \"Postman sample parcel\",\n  \"category_id\": 1,\n  \"size\": \"Small\",\n  \"weight\": 1,\n  \"quantity\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const locations = pm.response.json();",
+                  "if (locations.length) pm.collectionVariables.set(\"locationId\", locations[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2. Confirm check-in",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tracking_number\": \"POSTMAN-{{$timestamp}}\",\n  \"description\": \"Postman sample parcel\",\n  \"category_id\": 1,\n  \"size\": \"Small\",\n  \"weight\": 1,\n  \"quantity\": 1,\n  \"location_id\": \"{{locationId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const p = pm.response.json();",
+                  "if (p.id) { pm.collectionVariables.set(\"parcelId\", p.id); pm.collectionVariables.set(\"parcelCode\", p.code); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3. View parcel",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}"
+          }
+        },
+        {
+          "name": "4. Shortest route",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/route"
+          }
+        },
+        {
+          "name": "5. Mark retrieved",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/retrieve"
+          }
+        },
+        {
+          "name": "6. Wrong code · expected 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/dispatch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scanned_code\": \"WRONG-CODE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Wrong parcel rejected\", () => pm.response.to.have.status(409));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7. Verify scanned label",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scanned_code\": \"{{parcelCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "8. Confirm verified dispatch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/dispatch",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"scanned_code\": \"{{parcelCode}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "9. Parcel history",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions?parcel={{parcelId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Warehouse and records",
+      "item": [
+        {
+          "name": "Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/dashboard"
+          }
+        },
+        {
+          "name": "Warehouse layout and locations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/warehouse"
+          }
+        },
+        {
+          "name": "All parcels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels"
+          }
+        },
+        {
+          "name": "Search parcels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels?q={{parcelCode}}"
+          }
+        },
+        {
+          "name": "Stored parcels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels?status=Stored"
+          }
+        },
+        {
+          "name": "All transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/transactions"
+          }
+        },
+        {
+          "name": "Transfer options (Stored parcel only)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/transfer-options"
+          }
+        },
+        {
+          "name": "Transfer parcel (Stored parcel only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/parcels/{{parcelId}}/transfer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"location_id\": \"{{locationId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Notifications and appearance",
+      "item": [
+        {
+          "name": "Notifications",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/notifications"
+          }
+        },
+        {
+          "name": "Mark all notifications read",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/notifications/read-all"
+          }
+        },
+        {
+          "name": "My appearance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/preferences"
+          }
+        },
+        {
+          "name": "Save appearance",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/preferences",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"font_size\": \"medium\",\n  \"accent_color\": \"green\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "item": [
+        {
+          "name": "Team members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/users"
+          }
+        },
+        {
+          "name": "Categories",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/categories"
+          }
+        },
+        {
+          "name": "Create category",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/categories",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New category\",\n  \"color\": \"#688d77\",\n  \"active\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Create staff account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"New Staff\",\n  \"email\": \"newstaff@example.com\",\n  \"password\": \"ReplaceThis2026\",\n  \"role\": \"staff\",\n  \"active\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Reports",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports"
+          }
+        },
+        {
+          "name": "System and notification settings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/system-settings"
+          }
+        },
+        {
+          "name": "Export parcels CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports/export/parcels"
+          }
+        },
+        {
+          "name": "Export transactions CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports/export/transactions"
+          }
+        },
+        {
+          "name": "Export storage utilization CSV",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/reports/export/locations"
+          }
+        }
+      ]
+    }
+  ]
+}

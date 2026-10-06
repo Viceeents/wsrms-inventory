@@ -1,0 +1,5 @@
+-- Sample data is created by database/seeds/demo.js during first initialization.
+-- Passwords are securely hashed in JavaScript, so no plaintext password inserts
+-- or static password hashes are distributed in this SQL file.
+-- Set SEED_DEMO=true before initializing a fresh database, then run:
+-- npm run db:setup

@@ -1,0 +1,10 @@
+import { Router } from "express";
+import * as c from "../controllers/categoryController.js";
+import role from "../middleware/roleMiddleware.js";
+import validate from "../middleware/validateRequest.js";
+import { categorySchema } from "../utils/schemas.js";
+const r = Router();
+r.get("/", c.list);
+r.post("/", role("admin"), validate(categorySchema), c.create);
+r.put("/:id", role("admin"), validate(categorySchema), c.update);
+export default r;

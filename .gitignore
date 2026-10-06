@@ -1,0 +1,8 @@
+node_modules/
+client/dist/
+.env
+database/local-pg/
+.local/
+playwright-report/
+test-results/
+*.log
