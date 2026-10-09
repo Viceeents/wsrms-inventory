@@ -11,7 +11,7 @@ r.put(
   validate(
     z.object({
       font_size: z.enum(["small", "medium", "large"]),
-      accent_color: z.enum(["blue", "teal", "green", "purple", "orange"]),
+      theme: z.enum(["light", "dark"]).default("light"),
     }),
   ),
   c.savePreferences,
@@ -23,6 +23,19 @@ r.put(
   validate(
     z.object({
       revision: z.number().int().positive(),
+      size_limits: z
+        .object({
+          Small: z.array(z.number().positive().max(10000)).length(3),
+          Medium: z.array(z.number().positive().max(10000)).length(3),
+        })
+        .refine(
+          (v) =>
+            v.Small.slice()
+              .sort((a, b) => a - b)
+              .every((n, i) => n <= v.Medium.slice().sort((a, b) => a - b)[i]),
+          "Small dimensions must fit Medium limits.",
+        )
+        .optional(),
       floor_storage_enabled: z.boolean(),
       near_full_threshold: z.number().int().min(50).max(99),
       notification_events: z

@@ -11,7 +11,7 @@ export function readToken(req) {
 }
 export default async function authMiddleware(req, res, next) {
   const user = await get(
-    "SELECT u.id,u.code,u.name,u.email,u.role,u.active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1",
+    "SELECT u.id,u.code,u.name,u.email,u.role,u.active,u.profile_image FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.active=1 AND u.suspended=false AND u.deleted_at IS NULL",
     tokenHash(readToken(req)),
     new Date().toISOString(),
   );

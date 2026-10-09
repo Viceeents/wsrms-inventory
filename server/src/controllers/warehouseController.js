@@ -1,11 +1,72 @@
-import { get, run, atomic } from "../config/database.js";
+import { all, get, run, query, atomic } from "../config/database.js";
 import { getWarehouse } from "../models/warehouseModel.js";
 import { routeToLocation } from "../services/pathfindingService.js";
 import { audit } from "../services/auditService.js";
-import { notify, capacityAlerts } from "../services/notificationService.js";
+import {
+  notify,
+  capacityAlertsForLocations,
+} from "../services/notificationService.js";
 import { HttpError } from "../middleware/errorMiddleware.js";
 import { sizeUnits } from "../algorithms/storageScoring.js";
+import { dimensionsFit } from "../algorithms/parcelDimensions.js";
 export const details = async (req, res) => res.json(await getWarehouse());
+export async function rackRoute(req, res) {
+  const rack = String(req.params.rack).toUpperCase();
+  if (!["A", "B", "C"].includes(rack))
+    throw new HttpError(400, "Choose Rack A, B, or C.");
+  const warehouse = await getWarehouse();
+  const candidates = warehouse.locations.filter(
+    (l) =>
+      l.storage_type === "rack" &&
+      l.active &&
+      l.can_store &&
+      l.status !== "Blocked" &&
+      new RegExp(`^${rack}(?:[- .]|$)`, "i").test(l.code),
+  );
+  if (!candidates.length)
+    throw new HttpError(
+      409,
+      `Rack ${rack} has no available storage destinations.`,
+    );
+  const routes = candidates
+    .map((l) => ({
+      location: l,
+      route: routeToLocation(warehouse, l, req.query.start),
+    }))
+    .filter((r) => r.route);
+  routes.sort(
+    (a, b) =>
+      a.route.inbound.cost - b.route.inbound.cost ||
+      a.route.inboundSteps - b.route.inboundSteps ||
+      a.location.id - b.location.id,
+  );
+  if (!routes.length)
+    throw new HttpError(
+      409,
+      `Rack ${rack} cannot currently be reached. Check for blocked paths.`,
+    );
+  res.json({
+    ...routes[0].route,
+    rackLabel: `Rack ${rack}`,
+    locationCode: routes[0].location.code,
+  });
+}
+export async function route(req, res) {
+  const warehouse = await getWarehouse();
+  const location = warehouse.locations.find(
+    (l) => l.id === Number(req.params.id),
+  );
+  if (!location) throw new HttpError(404, "Storage location not found.");
+  if (!location.active || !location.can_store || location.status === "Blocked")
+    throw new HttpError(409, "This storage location is unavailable.");
+  const result = routeToLocation(warehouse, location, req.query.start);
+  if (!result)
+    throw new HttpError(
+      409,
+      "The selected storage location cannot currently be reached. Check for blocked warehouse paths.",
+    );
+  res.json(result);
+}
 export async function update(req, res) {
   try {
     const warehouse = await atomic(async () => {
@@ -80,6 +141,18 @@ export async function update(req, res) {
         configured = new Map(draft.locations.map((l) => [l.cell_id, l])),
         original = new Map(before.locations.map((l) => [l.id, l])),
         warnings = [];
+      const categories = new Set(
+        (await all("SELECT id FROM categories")).map((c) => c.id),
+      );
+      const occupied = await all(
+        "SELECT location_id,category_id,size,length_cm,width_cm,height_cm FROM parcels WHERE status!='Dispatched'",
+      );
+      const parcelsByLocation = new Map();
+      for (const p of occupied) {
+        if (!parcelsByLocation.has(p.location_id))
+          parcelsByLocation.set(p.location_id, []);
+        parcelsByLocation.get(p.location_id).push(p);
+      }
       for (const c of draft.cells)
         if (c.can_store && !configured.has(c.id))
           throw new HttpError(
@@ -112,12 +185,15 @@ export async function update(req, res) {
             400,
             "New locations need a storage-capable cell.",
           );
-        if (
-          l.category_id &&
-          !(await get("SELECT id FROM categories WHERE id=?", l.category_id))
-        )
+        if (l.category_id && !categories.has(l.category_id))
           throw new HttpError(400, "Invalid storage category.");
         if (old?.parcel_count) {
+          const stored = parcelsByLocation.get(old.id) || [];
+          if (stored.some((p) => !dimensionsFit(p, l)))
+            throw new HttpError(
+              409,
+              `${old.code} dimensions would exclude an occupied parcel.`,
+            );
           if (
             !c.active ||
             !c.can_store ||
@@ -138,12 +214,10 @@ export async function update(req, res) {
               `${old.code} cannot be reduced below its current load.`,
             );
           if (
-            await get(
-              "SELECT id FROM parcels WHERE location_id=? AND status!='Dispatched' AND (?::integer IS NOT NULL AND category_id!=? OR CASE size WHEN 'Small' THEN 1 WHEN 'Medium' THEN 2 ELSE 4 END>?)",
-              old.id,
-              l.category_id,
-              l.category_id,
-              sizeUnits[l.max_size],
+            stored.some(
+              (p) =>
+                (l.category_id !== null && p.category_id !== l.category_id) ||
+                sizeUnits[p.size] > sizeUnits[l.max_size],
             )
           )
             throw new HttpError(
@@ -188,25 +262,20 @@ export async function update(req, res) {
             );
           await run("DELETE FROM storage_locations WHERE id=?", old.id);
         }
-      for (const l of draft.locations.filter((l) => l.id))
-        await run(
-          "UPDATE storage_locations SET code=? WHERE id=?",
-          `__draft-${l.id}`,
-          l.id,
-        );
-      for (const c of draft.cells)
-        await run(
-          "UPDATE grid_cells SET type=?,walkable=?,active=?,can_store=?,availability=?,movement_cost=?,door_usage=?,directions=?::jsonb WHERE id=?",
-          c.type,
-          c.walkable,
-          c.active,
-          c.can_store,
-          c.availability,
-          c.movement_cost,
-          c.door_usage,
-          JSON.stringify(c.directions),
-          c.id,
-        );
+      await query(
+        "UPDATE storage_locations SET code='__draft-' || id WHERE id=ANY(?::integer[])",
+        [draft.locations.filter((l) => l.id).map((l) => l.id)],
+      );
+      await query(
+        `UPDATE grid_cells c SET type=v.type,walkable=v.walkable,active=v.active,can_store=v.can_store,availability=v.availability,movement_cost=v.movement_cost,door_usage=v.door_usage,directions=v.directions
+        FROM jsonb_to_recordset(?::jsonb) AS v(id text,type text,walkable boolean,active boolean,can_store boolean,availability text,movement_cost double precision,door_usage text,directions jsonb) WHERE c.id=v.id`,
+        [JSON.stringify(draft.cells)],
+      );
+      await query(
+        `UPDATE storage_locations l SET code=v.code,storage_type=v.storage_type,capacity=v.capacity,unit_capacity=v.unit_capacity,max_weight=v.max_weight,max_size=v.max_size,category_id=v.category_id,status=v.status,width_cm=v.width_cm,depth_cm=v.depth_cm,height_cm=v.height_cm
+        FROM jsonb_to_recordset(?::jsonb) AS v(id integer,code text,storage_type text,capacity integer,unit_capacity integer,max_weight numeric,max_size text,category_id integer,status text,width_cm numeric,depth_cm numeric,height_cm numeric) WHERE l.id=v.id`,
+        [JSON.stringify(draft.locations.filter((l) => l.id))],
+      );
       for (const l of draft.locations) {
         const values = [
           l.code,
@@ -218,24 +287,21 @@ export async function update(req, res) {
           l.category_id,
           l.status,
         ];
-        if (l.id)
+        if (!l.id)
           await run(
-            "UPDATE storage_locations SET code=?,storage_type=?,capacity=?,unit_capacity=?,max_weight=?,max_size=?,category_id=?,status=? WHERE id=?",
-            ...values,
-            l.id,
-          );
-        else
-          await run(
-            "INSERT INTO storage_locations(code,storage_type,capacity,unit_capacity,max_weight,max_size,category_id,status,cell_id) VALUES(?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO storage_locations(code,storage_type,capacity,unit_capacity,max_weight,max_size,category_id,status,cell_id,width_cm,depth_cm,height_cm) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
             ...values,
             l.cell_id,
+            l.width_cm,
+            l.depth_cm,
+            l.height_cm,
           );
       }
       await run(
         "UPDATE warehouse SET name=?,revision=revision+1 WHERE id=1",
         draft.name,
       );
-      await audit(req.user.id, "Layout change", {
+      await audit(req.user.id, "WAREHOUSE_LAYOUT_CHANGED", {
         metadata: {
           before: {
             revision: before.revision,
@@ -255,9 +321,9 @@ export async function update(req, res) {
         `Warehouse layout updated to revision ${before.revision + 1}.${warnings.length ? ` ${warnings.join(" ")}` : " Retrieval and return access validated."}`,
         { severity: warnings.length ? "warning" : "info" },
       );
-      for (const l of await getWarehouse().then((w) => w.locations))
-        await capacityAlerts(l.id);
-      return { ...(await getWarehouse()), warnings };
+      const updated = await getWarehouse();
+      await capacityAlertsForLocations(updated.locations);
+      return { ...updated, warnings };
     });
     res.json(warehouse);
   } catch (error) {

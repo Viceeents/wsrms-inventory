@@ -43,7 +43,7 @@ export async function atomic(fn, transactionPool = pool) {
     await client.query("COMMIT");
     return result;
   } catch (error) {
-    await client.query("ROLLBACK");
+    await client.query("ROLLBACK").catch(() => {});
     throw error;
   } finally {
     client.release();
@@ -72,6 +72,25 @@ export async function initializeDatabase() {
       ? pool
       : new pg.Pool(postgresPoolConfig(directUrl, env.schema));
   try {
+    // Warm serverless instances need no schema DDL or global mutation lock.
+    // New databases and pending migrations still use the locked setup below.
+    try {
+      const { rows } = await migrationPool.query(
+        "SELECT COUNT(*)::integer AS applied FROM schema_migrations WHERE version = ANY($1::text[])",
+        [
+          [
+            "002_inventory_cells",
+            "003_recovery_physical",
+            "004_backup_neutral",
+            "005_deleted_users",
+            "006_team_messaging",
+          ],
+        ],
+      );
+      if (rows[0].applied === 5) return;
+    } catch (error) {
+      if (error.code !== "42P01") throw error;
+    }
     await atomic(async () => {
       await query(
         "CREATE TABLE IF NOT EXISTS schema_migrations(version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)",
@@ -95,7 +114,79 @@ export async function initializeDatabase() {
         );
       }
       await query(readFileSync(path.join(root, "database/schema.sql"), "utf8"));
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "003_recovery_physical",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/003_recovery_physical.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "003_recovery_physical",
+          new Date().toISOString(),
+        );
+      }
       const { seed } = await import("../../../database/seeds/demo.js");
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "004_backup_neutral",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/004_backup_neutral.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "004_backup_neutral",
+          new Date().toISOString(),
+        );
+      }
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "005_deleted_users",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/005_deleted_users.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "005_deleted_users",
+          new Date().toISOString(),
+        );
+      }
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "006_team_messaging",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/006_team_messaging.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "006_team_messaging",
+          new Date().toISOString(),
+        );
+      }
       await seed();
     }, migrationPool);
   } finally {

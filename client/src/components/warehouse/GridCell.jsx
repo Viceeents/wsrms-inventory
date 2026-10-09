@@ -1,12 +1,7 @@
-import { ArrowLeftRight, Lock } from "lucide-react";
+import { DoorOpen, Lock } from "lucide-react";
+import { memo } from "react";
 import { cellType, locationLabel } from "../../utils/storage";
-export default function GridCell({
-  cell,
-  location,
-  selected,
-  onClick,
-  inRoute,
-}) {
+function GridCell({ cell, location, selected, onClick, inRoute }) {
   const utilization = location
     ? Math.max(
         (location.occupancy || 0) / location.capacity,
@@ -27,6 +22,7 @@ export default function GridCell({
   return (
     <button
       type="button"
+      aria-pressed={selected}
       onClick={() => onClick?.(cell)}
       aria-label={`${cellType(cell.type)} row ${cell.row + 1} column ${cell.col + 1}${location ? `, ${locationLabel(location)}, ${state}, ${location.occupancy || 0} of ${location.capacity} parcels` : ""}`}
       title={
@@ -38,14 +34,9 @@ export default function GridCell({
     >
       <span>
         {location && cell.can_store ? (
-          <>
-            <b>{location.code}</b>
-            <small>
-              {location.occupancy || 0}/{location.capacity}
-            </small>
-          </>
+          <b>{location.code}</b>
         ) : cell.type === "door" ? (
-          <ArrowLeftRight size={18} />
+          <DoorOpen size={20} />
         ) : cell.type === "blocked" || !cell.active ? (
           <Lock size={13} />
         ) : null}
@@ -56,3 +47,4 @@ export default function GridCell({
     </button>
   );
 }
+export default memo(GridCell);

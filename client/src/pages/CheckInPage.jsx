@@ -1,3 +1,5 @@
+import useDraft from "../hooks/useDraft";
+import DraftNotice from "../components/common/DraftNotice";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { PackagePlus, Check, ArrowLeft, Printer, MapPin } from "lucide-react";
@@ -34,6 +36,12 @@ export default function CheckInPage() {
     [busy, setBusy] = useState(false),
     [parcel, setParcel] = useState(null),
     [scan, setScan] = useState(false);
+  const draft = useDraft(
+    "check-in",
+    form,
+    setForm,
+    !parcel && JSON.stringify(form) !== JSON.stringify(initial),
+  );
   async function recommend(e) {
     e.preventDefault();
     setBusy(true);
@@ -53,6 +61,7 @@ export default function CheckInPage() {
     setError("");
     try {
       setParcel(await parcelService.create({ ...form, location_id: selected }));
+      draft.clear();
       warehouse.reload();
     } catch (e) {
       setError(e.message);
@@ -67,6 +76,9 @@ export default function CheckInPage() {
         title="Check-in parcel"
         description="Register an arrival and give it the right place in your warehouse."
       />
+      {!parcel && (
+        <DraftNotice draft={draft} label="Unfinished check-in found" />
+      )}
       <ErrorMessage message={error} />
       {categories.loading || categories.error ? (
         <LoadState {...categories} />
@@ -78,7 +90,7 @@ export default function CheckInPage() {
           <p className="eyebrow">CHECK-IN COMPLETE</p>
           <h2>Your parcel is ready for storage.</h2>
           <p className="muted">
-            {parcel.code} has been assigned to Rack {parcel.location_code}. The
+            {parcel.code} has been assigned to {parcel.location_code}. The
             check-in is recorded.
           </p>
           <LabelPreview parcel={parcel} />
@@ -162,7 +174,7 @@ export default function CheckInPage() {
             <div className="recommendation-layout">
               <Card
                 title="Choose a storage location"
-                description={`${form.description} · ${form.quantity} item(s) · ${form.weight} kg each`}
+                description={`${picked?.parcel_size || ""} - ${form.length_cm} x ${form.width_cm} x ${form.height_cm} cm - ${form.description} · ${form.quantity} item(s) · ${form.weight} kg each`}
               >
                 <div className="card-body">
                   <StorageRecommendation

@@ -38,6 +38,7 @@ export default function StorageRecommendation({
             {storageType(r.storage_type)} ·{" "}
             {r.category_name || "All categories"} · {r.max_size}
           </p>
+          {i === 0 && <p>{r.reason}</p>}
           <Progress value={r.utilization * 100} />
           <div className="recommendation-bottom">
             <span>

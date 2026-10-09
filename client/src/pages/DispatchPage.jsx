@@ -1,3 +1,5 @@
+import useDraft from "../hooks/useDraft";
+import DraftNotice from "../components/common/DraftNotice";
 import { useState, useEffect } from "react";
 import { useSearchParams, Link } from "react-router-dom";
 import {
@@ -24,6 +26,7 @@ import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
 import StatusBadge from "../components/common/StatusBadge";
 import ParcelTable from "../components/parcel/ParcelTable";
+import RouteUnavailable from "../components/warehouse/RouteUnavailable";
 import WarehouseGrid from "../components/warehouse/WarehouseGrid";
 import QRScanner from "../components/qr/QRScanner";
 import DispatchRouteSummary from "../components/warehouse/DispatchRouteSummary";
@@ -32,6 +35,7 @@ export default function DispatchPage() {
   const [params, setParams] = useSearchParams(),
     [parcel, setParcel] = useState(null),
     [route, setRoute] = useState(null),
+    [routeFailure, setRouteFailure] = useState(null),
     [direction, setDirection] = useState("inbound"),
     [verification, setVerification] = useState(null),
     [search, setSearch] = useState(""),
@@ -44,6 +48,12 @@ export default function DispatchPage() {
     parcels = useApi(`/parcels?q=${encodeURIComponent(q)}`),
     warehouse = useApi("/warehouse", { poll: true });
   const id = params.get("parcel");
+  const preparation = useDraft(
+    "dispatch-preparation",
+    id ? { parcel_id: id } : null,
+    (value) => setParams({ parcel: String(value.parcel_id) }),
+    !!id && !done,
+  );
   useEffect(() => {
     if (!id) {
       setParcel(null);
@@ -65,7 +75,11 @@ export default function DispatchPage() {
             const r = await parcelService.route(id);
             if (alive) setRoute(r);
           } catch (e) {
-            if (alive) setError(e.message);
+            if (alive) {
+              setRoute(null);
+              setRouteFailure(e.message);
+              setError(e.message);
+            }
           }
         }
       })
@@ -110,6 +124,7 @@ export default function DispatchPage() {
     setError("");
     try {
       const p = await parcelService.dispatch(parcel.id, code);
+      preparation.clear();
       setDone(p);
       parcels.reload();
       warehouse.reload();
@@ -123,10 +138,20 @@ export default function DispatchPage() {
     verification === code.trim() && matchesParcel(parcel?.code, code);
   return (
     <>
+      <RouteUnavailable
+        message={routeFailure}
+        onClose={() => setRouteFailure(null)}
+      />
       <PageTitle
         title="Retrieve & dispatch"
         description="Find the right parcel, follow its route, and verify before release."
       />
+      {!done && (
+        <DraftNotice
+          draft={preparation}
+          label="Unfinished dispatch preparation found"
+        />
+      )}
       <ErrorMessage message={error} />
       {done ? (
         <Card className="checkin-success">

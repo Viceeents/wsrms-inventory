@@ -1,5 +1,13 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
+import pg from "pg";
+import { randomUUID } from "node:crypto";
+import {
+  directDatabaseUrl,
+  postgresPoolConfig,
+} from "../../server/src/config/postgres.js";
+import sharp from "sharp";
+import { env } from "../../server/src/config/env.js";
 import request from "supertest";
 import app from "../../server/src/app.js";
 import vercelHandler from "../../api/index.js";
@@ -7,6 +15,7 @@ import {
   initializeDatabase,
   db,
   get,
+  run,
 } from "../../server/src/config/database.js";
 const admin = request.agent(app),
   staff = request.agent(app);
@@ -16,6 +25,9 @@ const payload = {
   tracking_number: "TEST-001",
   category_id: 1,
   size: "Small",
+  length_cm: 20,
+  width_cm: 15,
+  height_cm: 10,
   weight: 2,
   quantity: 2,
 };
@@ -183,7 +195,9 @@ test("Retrieval path is adjacent to rack, then retrieval changes status", async 
   const route = (await staff.get(`/api/parcels/${parcel.id}/route`).expect(200))
     .body;
   assert.ok(route.path.length);
-  assert.ok(!route.path.includes(route.target));
+  assert.ok(
+    !route.path.some(({ row, col }) => `${row}-${col}` === route.target),
+  );
   await staff
     .post(`/api/parcels/${parcel.id}/dispatch`)
     .send({ scanned_code: parcel.code })
@@ -246,7 +260,9 @@ test("Layout saves routes and audit snapshots; stale revisions are rejected", as
   assert.equal(saved.revision, warehouse.revision + 1);
   await admin.put("/api/warehouse").send(draft).expect(409);
   warehouse = saved;
-  const logs = (await admin.get("/api/transactions?type=Layout%20change")).body;
+  const logs = (
+    await admin.get("/api/transactions?type=WAREHOUSE_LAYOUT_CHANGED")
+  ).body;
   assert.equal(logs[0].metadata.after.revision, saved.revision);
 });
 test("Layout rejects unreachable locations, removal of historical locations, and overloaded capacities", async () => {
@@ -384,10 +400,27 @@ test("Floor inventory, independent routes, verification and capacity release sta
   );
   const route = (await staff.get(`/api/parcels/${p.id}/route`).expect(200))
     .body;
-  assert.equal(route.inbound.path[0], route.accessPointId);
-  assert.equal(route.outbound.path[0], route.inbound.path.at(-1));
-  assert.equal(route.outbound.path.at(-1), route.dispatchAccessPointId);
+  assert.equal(
+    `${route.inbound.path[0].row}-${route.inbound.path[0].col}`,
+    route.accessPointId,
+  );
+  assert.deepEqual(route.outbound.path[0], route.inbound.path.at(-1));
+  assert.equal(
+    `${route.outbound.path.at(-1).row}-${route.outbound.path.at(-1).col}`,
+    route.dispatchAccessPointId,
+  );
   assert.equal(route.totalSteps, route.inboundSteps + route.returnSteps);
+  const locationRoute = (
+    await staff.get(`/api/warehouse/locations/${floor.id}/route`).expect(200)
+  ).body;
+  assert.deepEqual(locationRoute.inbound.path, route.inbound.path);
+  assert.deepEqual(locationRoute.destination, { row: cell.row, col: cell.col });
+  assert.ok(
+    locationRoute.inbound.path.every(
+      ({ row, col }) => Number.isInteger(row) && Number.isInteger(col),
+    ),
+  );
+  await staff.get("/api/warehouse/locations/999999/route").expect(404);
   const second = (
     await staff
       .post("/api/parcels")
@@ -534,19 +567,20 @@ test("Floor policy, notification settings and account preferences enforce permis
     .expect(200);
   await staff
     .put("/api/preferences")
-    .send({ font_size: "large", accent_color: "purple" })
+    .send({ font_size: "large", theme: "dark" })
     .expect(200);
   assert.deepEqual((await staff.get("/api/preferences")).body, {
     font_size: "large",
-    accent_color: "purple",
+    theme: "dark",
   });
   assert.deepEqual((await admin.get("/api/preferences")).body, {
     font_size: "medium",
-    accent_color: "green",
+    theme: "light",
   });
   for (const body of [
-    { font_size: "huge", accent_color: "green" },
-    { font_size: "small", accent_color: "#000000" },
+    { font_size: "huge", theme: "light" },
+    { font_size: "small", theme: "invalid" },
+    { font_size: "small", theme: "system" },
   ])
     await staff.put("/api/preferences").send(body).expect(400);
   assert.ok(
@@ -595,6 +629,354 @@ test("Database initialization is idempotent and preserves parcel assignments", a
   assert.equal((await admin.get("/api/warehouse")).body.revision, w.revision);
 });
 
+test("Measured parcels are classified by configured thresholds and compatible racks outrank floor storage", async () => {
+  const body = {
+    ...payload,
+    tracking_number: "PHYSICAL-001",
+    length_cm: 35,
+    width_cm: 25,
+    height_cm: 18,
+    quantity: 1,
+    size: "Large",
+  };
+  const options = (
+    await staff.post("/api/parcels/recommendations").send(body).expect(200)
+  ).body;
+  assert.ok(options.length);
+  assert.equal(options[0].storage_type, "rack");
+  assert.ok(options[0].reason.includes("compatible rack"));
+  const stored = (
+    await staff
+      .post("/api/parcels")
+      .send({ ...body, location_id: options[0].id })
+      .expect(201)
+  ).body;
+  assert.equal(stored.size, "Medium");
+  assert.equal(stored.length_cm, 35);
+  const over = {
+    ...body,
+    tracking_number: "OVERSIZED",
+    length_cm: 5000,
+    width_cm: 20,
+    height_cm: 20,
+  };
+  assert.equal(
+    (await staff.post("/api/parcels/recommendations").send(over).expect(200))
+      .body.length,
+    0,
+  );
+  await staff
+    .post("/api/parcels")
+    .send({ ...over, location_id: options[0].id })
+    .expect(409);
+  const missing = { ...body };
+  delete missing.length_cm;
+  await staff
+    .post("/api/parcels")
+    .send({ ...missing, location_id: options[0].id })
+    .expect(400);
+  const layout = (await admin.get("/api/warehouse")).body;
+  layout.locations.find((l) => l.id === stored.location_id).width_cm = 1;
+  await admin.put("/api/warehouse").send(layout).expect(409);
+  const prefs = (await admin.get("/api/system-settings")).body;
+  await admin
+    .put("/api/system-settings")
+    .send({
+      ...prefs,
+      size_limits: { Small: [10, 10, 10], Medium: [20, 20, 20] },
+    })
+    .expect(200);
+  const changed = (
+    await staff.post("/api/parcels/recommendations").send(body).expect(200)
+  ).body;
+  const compatible =
+    changed.find((l) => l.storage_type === "rack" && l.max_size === "Large") ||
+    changed[0];
+  if (compatible) {
+    const p = (
+      await staff
+        .post("/api/parcels")
+        .send({
+          ...body,
+          tracking_number: "RECLASSIFIED",
+          location_id: compatible.id,
+        })
+        .expect(201)
+    ).body;
+    assert.equal(p.size, "Large");
+  }
+  const fresh = (await admin.get("/api/system-settings")).body;
+  await admin
+    .put("/api/system-settings")
+    .send({ ...fresh, size_limits: prefs.size_limits })
+    .expect(200);
+});
+
+test("Presence requires a live connection and recent activity; heartbeat writes are throttled", async () => {
+  const sid = (await staff.get("/api/auth/me")).body.id;
+  const current = new Date().toISOString();
+  await staff
+    .post("/api/presence/heartbeat")
+    .send({ activity_at: current })
+    .expect(200);
+  assert.equal(
+    (await admin.get("/api/users")).body.find((u) => u.id === sid).presence,
+    "Online",
+  );
+  await run(
+    "UPDATE sessions SET last_seen_at=?,last_activity_at=? WHERE user_id=?",
+    current,
+    new Date(Date.now() - 6 * 60000).toISOString(),
+    sid,
+  );
+  assert.equal(
+    (await admin.get("/api/users")).body.find((u) => u.id === sid).presence,
+    "Idle",
+  );
+  await run(
+    "UPDATE sessions SET last_seen_at=? WHERE user_id=?",
+    new Date(Date.now() - 4 * 60000).toISOString(),
+    sid,
+  );
+  assert.equal(
+    (await admin.get("/api/users")).body.find((u) => u.id === sid).presence,
+    "Offline",
+  );
+  await staff
+    .post("/api/presence/heartbeat")
+    .send({ activity_at: current })
+    .expect(200);
+  const before = await get(
+    "SELECT last_activity_at FROM users WHERE id=?",
+    sid,
+  );
+  await staff
+    .post("/api/presence/heartbeat")
+    .send({ activity_at: new Date().toISOString() })
+    .expect(200);
+  assert.deepEqual(
+    await get("SELECT last_activity_at FROM users WHERE id=?", sid),
+    before,
+  );
+  await run(
+    "UPDATE sessions SET last_activity_at=? WHERE user_id=?",
+    new Date(Date.now() - 31 * 60000).toISOString(),
+    sid,
+  );
+  assert.equal(
+    (await admin.get("/api/users")).body.find((u) => u.id === sid).presence,
+    "Offline",
+  );
+  await run(
+    "UPDATE sessions SET last_seen_at=?,last_activity_at=? WHERE user_id=?",
+    current,
+    current,
+    sid,
+  );
+});
+
+test("Admin images save immediately while staff images require validated approval", async () => {
+  const image = await sharp({
+    create: { width: 8, height: 8, channels: 3, background: "#245d46" },
+  })
+    .png()
+    .toBuffer();
+  const body = { image: `data:image/png;base64,${image.toString("base64")}` },
+    sid = (await staff.get("/api/auth/me")).body.id;
+  const saved = (
+    await admin.post("/api/profile/requests").send(body).expect(200)
+  ).body;
+  assert.equal(saved.status, "Saved");
+  assert.equal(
+    (await admin.get("/api/auth/me")).body.profile_image,
+    saved.profile_image,
+  );
+  assert.equal((await admin.get("/api/profile/requests")).body.length, 0);
+  await admin.post("/api/profile/requests").send(body).expect(200);
+  const request = (
+    await staff.post("/api/profile/requests").send(body).expect(201)
+  ).body;
+  assert.equal((await staff.get("/api/auth/me")).body.profile_image, null);
+  await staff.post("/api/profile/requests").send(body).expect(409);
+  await staff.get("/api/admin/profile-requests").expect(403);
+  await staff
+    .post(`/api/admin/profile-requests/${request.id}/review`)
+    .send({ status: "Approved" })
+    .expect(403);
+  const pending = (await admin.get("/api/admin/profile-requests")).body.find(
+    (r) => r.id === request.id,
+  );
+  assert.equal(pending.status, "Pending");
+  assert.ok(pending.requested_image.startsWith("data:image/webp;base64,"));
+  await admin
+    .post(`/api/admin/profile-requests/${request.id}/review`)
+    .send({ status: "Approved" })
+    .expect(200);
+  const active = (await staff.get("/api/auth/me")).body.profile_image;
+  assert.equal(active, pending.requested_image);
+  await admin
+    .post(`/api/admin/profile-requests/${request.id}/review`)
+    .send({ status: "Rejected" })
+    .expect(409);
+  const next = (
+    await staff.post("/api/profile/requests").send(body).expect(201)
+  ).body;
+  await admin
+    .post(`/api/admin/profile-requests/${next.id}/review`)
+    .send({ status: "Rejected" })
+    .expect(200);
+  assert.equal((await staff.get("/api/auth/me")).body.profile_image, active);
+  const approved = await get(
+    "SELECT * FROM profile_image_requests WHERE id=?",
+    request.id,
+  );
+  assert.ok(approved.reviewed_at);
+  assert.equal(approved.user_id, sid);
+  assert.ok(approved.reviewed_by);
+  const notes = (await staff.get("/api/notifications")).body.items;
+  assert.ok(notes.some((n) => n.type === "profile_approved"));
+  assert.ok(notes.some((n) => n.type === "profile_rejected"));
+  for (const image of [
+    "data:image/svg+xml;base64,PHN2Zz4=",
+    "data:image/png;base64,YXJiaXRyYXJ5",
+    "data:image/png;base64," + "A".repeat(680000),
+  ])
+    for (const account of [staff, admin])
+      await account.post("/api/profile/requests").send({ image }).expect(400);
+  assert.ok(
+    (await admin.get("/api/transactions?type=PROFILE_IMAGE_APPROVED")).body
+      .length,
+  );
+});
+
+test("Backup creation, failure monitoring, and restore permissions do not change primary data", async () => {
+  await staff.get("/api/admin/database").expect(403);
+  await staff.post("/api/admin/database/backups").expect(403);
+  await staff.post("/api/admin/database/restore").send({}).expect(403);
+  const before = await get("SELECT COUNT(*) AS count FROM parcels");
+  const backupResponse = await admin.post("/api/admin/database/backups");
+  assert.equal(backupResponse.status, 201, JSON.stringify(backupResponse.body));
+  const backup = backupResponse.body;
+  assert.equal(backup.status, "Completed");
+  assert.ok(backup.size_bytes > 0);
+  const health = (await admin.get("/api/admin/database").expect(200)).body;
+  assert.equal(health.primary.status, "Online");
+  assert.equal(health.backup.status, "Warning");
+  await admin
+    .post("/api/admin/database/restore")
+    .send({
+      backup_id: backup.id,
+      confirmation: "RESTORE EMERGENCY DATABASE",
+      password: "wrong",
+    })
+    .expect(403);
+  process.env.EMERGENCY_DATABASE_URL = env.databaseUrl;
+  try {
+    await admin
+      .post("/api/admin/database/restore")
+      .send({
+        backup_id: backup.id,
+        confirmation: "RESTORE EMERGENCY DATABASE",
+        password: "Warehouse@2026",
+      })
+      .expect(400);
+  } finally {
+    delete process.env.EMERGENCY_DATABASE_URL;
+  }
+  // Exercise a real restore only against a freshly created, isolated recovery database.
+  const name = `wsrms_recovery_test_${randomUUID().replaceAll("-", "")}`;
+  assert.match(name, /^wsrms_recovery_test_[a-f0-9]{32}$/);
+  const direct = directDatabaseUrl(env.databaseUrl, env.databaseUrlUnpooled),
+    operator = new pg.Pool(postgresPoolConfig(direct, "public"));
+  let created = false;
+  try {
+    await operator.query(`CREATE DATABASE "${name}"`);
+    created = true;
+    const target = new URL(direct);
+    target.pathname = `/${name}`;
+    process.env.EMERGENCY_DATABASE_URL = target.toString();
+    process.env.BACKUP_DATABASE_URL = target.toString();
+    const synchronized = (
+      await admin.post("/api/admin/database/backups").expect(201)
+    ).body;
+    assert.equal(synchronized.status, "Completed");
+    assert.ok(synchronized.backup_synced_at);
+    assert.equal(synchronized.backup_database_name, name);
+    assert.equal(
+      (await admin.get("/api/admin/database")).body.backup.status,
+      "Healthy",
+    );
+    const legacy = new pg.Pool(
+      postgresPoolConfig(target.toString(), env.schema),
+    );
+    try {
+      await legacy.query(
+        "CREATE TABLE recovery_only_dependency (cell_id TEXT REFERENCES grid_cells(id))",
+      );
+    } finally {
+      await legacy.end();
+    }
+    await admin
+      .post("/api/admin/database/restore")
+      .send({
+        backup_id: backup.id,
+        confirmation: "RESTORE EMERGENCY DATABASE",
+        password: "Warehouse@2026",
+      })
+      .expect(200);
+    const recovery = new pg.Pool(
+      postgresPoolConfig(target.toString(), env.schema),
+    );
+    try {
+      assert.deepEqual(
+        (await recovery.query("SELECT COUNT(*) AS count FROM parcels")).rows[0],
+        before,
+      );
+      assert.equal(
+        (await recovery.query("SELECT COUNT(*) AS count FROM sessions")).rows[0]
+          .count,
+        0,
+      );
+      assert.equal(
+        (
+          await recovery.query(
+            "SELECT to_regclass('recovery_only_dependency') AS name",
+          )
+        ).rows[0].name,
+        null,
+      );
+    } finally {
+      await recovery.end();
+    }
+    assert.ok(
+      (await admin.get("/api/transactions?type=DATABASE_RESTORE_REQUESTED"))
+        .body.length,
+    );
+  } finally {
+    delete process.env.BACKUP_DATABASE_URL;
+    delete process.env.EMERGENCY_DATABASE_URL;
+    if (created) await operator.query(`DROP DATABASE "${name}"`);
+    await operator.end();
+  }
+  const old = process.env.PG_DUMP_PATH;
+  process.env.PG_DUMP_PATH = "C:/__wsrms_missing_pg_dump__.exe";
+  try {
+    await admin.post("/api/admin/database/backups").expect(503);
+  } finally {
+    if (old) process.env.PG_DUMP_PATH = old;
+    else delete process.env.PG_DUMP_PATH;
+  }
+  assert.equal(
+    (await admin.get("/api/admin/database")).body.backup.status,
+    "Failed",
+  );
+  assert.deepEqual(await get("SELECT COUNT(*) AS count FROM parcels"), before);
+  const notes = (await admin.get("/api/notifications")).body.items;
+  assert.ok(
+    notes.some((n) => n.type === "backup_failed" && n.severity === "critical"),
+  );
+});
+
 test("Cross-origin mutations and signed-out sessions are denied", async () => {
   await staff
     .post("/api/parcels")
@@ -603,4 +985,204 @@ test("Cross-origin mutations and signed-out sessions are denied", async () => {
     .expect(403);
   await staff.post("/api/auth/logout").expect(200);
   await staff.get("/api/parcels").expect(401);
+});
+
+test("Account deletion is admin-only, permanent, revokes sessions and retains history", async () => {
+  await staff
+    .post("/api/auth/login")
+    .send({ email: "staff@wsrms.local", password: "Staff@2026" })
+    .expect(200);
+  const self = (await admin.get("/api/auth/me").expect(200)).body;
+  await admin.delete(`/api/users/${self.id}`).expect(400);
+  const created = (
+    await admin
+      .post("/api/users")
+      .send({
+        name: "Deletion test",
+        email: "delete-test@wsrms.local",
+        password: "DeleteTest@2026",
+        role: "staff",
+        active: 1,
+      })
+      .expect(201)
+  ).body;
+  const victim = request.agent(app);
+  await victim
+    .post("/api/auth/login")
+    .send({ email: created.email, password: "DeleteTest@2026" })
+    .expect(200);
+  await staff.delete(`/api/users/${created.id}`).expect(403);
+  await run(
+    "INSERT INTO transactions(code,user_id,type,created_at) VALUES(?,?,?,?)",
+    `DELETE-TEST-${created.id}`,
+    created.id,
+    "Historical test",
+    new Date().toISOString(),
+  );
+  await admin.delete(`/api/users/${created.id}`).expect(200);
+  await victim.get("/api/auth/me").expect(401);
+  await victim
+    .post("/api/auth/login")
+    .send({ email: created.email, password: "DeleteTest@2026" })
+    .expect(401);
+  assert.ok(
+    !(await admin.get("/api/users").expect(200)).body.some(
+      (u) => u.id === created.id,
+    ),
+  );
+  const archived = (
+    await admin.get("/api/users?archived=true").expect(200)
+  ).body.find((u) => u.id === created.id);
+  assert.ok(archived.deleted_at);
+  assert.equal(archived.active, 0);
+  assert.ok(
+    await get(
+      "SELECT id FROM transactions WHERE user_id=? AND type=?",
+      created.id,
+      "Historical test",
+    ),
+  );
+  await admin
+    .put(`/api/users/${created.id}`)
+    .send({
+      name: created.name,
+      email: created.email,
+      role: "staff",
+      active: 1,
+      password: "",
+    })
+    .expect(404);
+});
+test("Messaging persists safely, enforces permissions and tracks reads per user", async () => {
+  await request(app).get("/api/messages/team").expect(401);
+  await staff
+    .post("/api/messages/announcements")
+    .send({ title: "Not allowed", message: "Staff announcement" })
+    .expect(403);
+  await staff
+    .post("/api/messages/updates")
+    .send({ message: "Fake update" })
+    .expect(400);
+  await staff.post("/api/messages/team").send({ message: "   " }).expect(400);
+  await staff
+    .post("/api/messages/team")
+    .send({ message: "x".repeat(2001) })
+    .expect(400);
+  await staff.get("/api/messages/team?before=bad").expect(400);
+  const sent = (
+    await staff
+      .post("/api/messages/team")
+      .send({
+        message: "<script>alert(1)</script> Parcel unloading completed.",
+      })
+      .expect(201)
+  ).body;
+  const history = (await admin.get("/api/messages/team").expect(200)).body;
+  const saved = history.items.find((m) => m.id === sent.id);
+  assert.ok(saved.unread);
+  assert.equal(saved.sender_name, (await staff.get("/api/auth/me")).body.name);
+  assert.equal(
+    saved.message,
+    "<script>alert(1)</script> Parcel unloading completed.",
+  );
+  assert.equal(saved.password_hash, undefined);
+  assert.ok(
+    (await admin.get("/api/messages/unread").expect(200)).body.channels.team >
+      0,
+  );
+  await admin
+    .post("/api/messages/team/read")
+    .send({ through: sent.id })
+    .expect(200);
+  assert.equal(
+    (await admin.get("/api/messages/unread").expect(200)).body.channels.team,
+    0,
+  );
+  const announcement = (
+    await admin
+      .post("/api/messages/announcements")
+      .send({
+        title: "Maintenance",
+        message: "Tomorrow at 9 AM.",
+        priority: "Urgent",
+      })
+      .expect(201)
+  ).body;
+  const staffHistory = (
+    await staff.get("/api/messages/announcements").expect(200)
+  ).body;
+  assert.equal(
+    staffHistory.items.find((m) => m.id === announcement.id).priority,
+    "Urgent",
+  );
+  assert.ok(
+    (await staff.get("/api/messages/unread").expect(200)).body.channels
+      .announcements > 0,
+  );
+  await staff
+    .post("/api/messages/team/read")
+    .send({ through: announcement.id })
+    .expect(404);
+  await staff
+    .post("/api/messages/announcements/read")
+    .send({ through: announcement.id })
+    .expect(200);
+  assert.equal(
+    (await staff.get("/api/messages/unread").expect(200)).body.channels
+      .announcements,
+    0,
+  );
+  await staff
+    .delete(`/api/messages/announcements/${announcement.id}`)
+    .expect(403);
+  await admin
+    .delete(`/api/messages/announcements/${announcement.id}`)
+    .expect(200);
+  assert.ok(
+    !(await staff.get("/api/messages/announcements")).body.items.some(
+      (m) => m.id === announcement.id,
+    ),
+  );
+  assert.ok(
+    await get("SELECT archived_at FROM messages WHERE id=?", announcement.id),
+  );
+  const updates = (await staff.get("/api/messages/updates").expect(200)).body
+    .items;
+  assert.ok(updates.some((m) => m.title === "Warehouse map updated"));
+  assert.ok(updates.every((m) => !m.message.includes("postgres://")));
+});
+
+test("Message history is bounded and older pages have no duplicates", async () => {
+  for (let i = 0; i < 55; i++)
+    await run(
+      "INSERT INTO messages(channel,sender_user_id,message,created_at) VALUES(?,?,?,?)",
+      "team",
+      1,
+      `History ${i}`,
+      new Date().toISOString(),
+    );
+  const latest = (await staff.get("/api/messages/team").expect(200)).body;
+  assert.equal(latest.items.length, 50);
+  assert.equal(latest.hasMore, true);
+  const earlier = (
+    await staff
+      .get(`/api/messages/team?before=${latest.items[0].id}`)
+      .expect(200)
+  ).body;
+  assert.ok(earlier.items.length > 0);
+  assert.ok(earlier.items.every((m) => m.id < latest.items[0].id));
+  assert.equal(earlier.hasMore, false);
+});
+
+test("Rack group paths use the existing router and validate destinations", async () => {
+  for (const rack of ["A", "B", "C"]) {
+    const result = (
+      await staff.get(`/api/warehouse/racks/${rack}/route`).expect(200)
+    ).body;
+    assert.equal(result.rackLabel, `Rack ${rack}`);
+    assert.ok(result.locationCode.startsWith(`${rack}-`));
+    assert.ok(result.inbound.path.length);
+    assert.equal(result.totalSteps, result.inboundSteps + result.returnSteps);
+  }
+  await staff.get("/api/warehouse/racks/Z/route").expect(400);
 });

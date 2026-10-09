@@ -13,5 +13,23 @@ services:
       test: ["CMD-SHELL", "pg_isready -U wsrms -d wsrms_inventory_db"]
       interval: 5s
       retries: 10
+    restart: unless-stopped
+  postgres-backup:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: wsrms_inventory_backup
+      POSTGRES_USER: wsrms_backup
+      POSTGRES_PASSWORD: ${BACKUP_POSTGRES_PASSWORD:?Set BACKUP_POSTGRES_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - postgres_backup_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U wsrms_backup -d wsrms_inventory_backup"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
 volumes:
   postgres_data:
+  postgres_backup_data:

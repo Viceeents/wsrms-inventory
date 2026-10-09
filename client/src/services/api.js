@@ -7,6 +7,11 @@ export async function api(path, options = {}) {
       ...options.headers,
     },
     body: options.body ? JSON.stringify(options.body) : undefined,
+  }).catch((error) => {
+    if (error.name === "AbortError") throw error;
+    throw new Error(
+      "Could not connect to the system. Check your connection and try again.",
+    );
   });
   const result = await response
     .json()

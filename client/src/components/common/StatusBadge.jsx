@@ -4,7 +4,7 @@ export default function StatusBadge({ status }) {
       className={`badge badge-${String(status).toLowerCase().replaceAll(" ", "-")}`}
     >
       <span />
-      {status}
+      {{ Stored: "In Storage", Retrieved: "Retrieval" }[status] || status}
     </span>
   );
 }

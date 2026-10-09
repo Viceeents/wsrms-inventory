@@ -9,7 +9,7 @@ export default function LabelPreview({ parcel, onReady }) {
       <div className="label-top">
         <span>
           <Box size={18} />
-          wsrms
+          Storix
         </span>
         <strong>{locationLabel(parcel)}</strong>
       </div>

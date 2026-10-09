@@ -4,7 +4,10 @@ export const parcelSchema = z.object({
   tracking_number: z.string().trim().max(100).optional().default(""),
   description: z.string().trim().min(3).max(250),
   category_id: id,
-  size: z.enum(["Small", "Medium", "Large"]),
+  size: z.enum(["Small", "Medium", "Large"]).default("Small"),
+  length_cm: z.coerce.number().positive().max(10000),
+  width_cm: z.coerce.number().positive().max(10000),
+  height_cm: z.coerce.number().positive().max(10000),
   weight: z.coerce.number().positive().max(10000),
   quantity: z.coerce.number().int().positive().max(10000),
 });
@@ -24,6 +27,7 @@ export const userSchema = z.object({
     .transform((s) => s.toLowerCase()),
   role: z.enum(["staff", "admin"]),
   active: z.coerce.number().int().min(0).max(1).default(1),
+  suspended: z.boolean().default(false),
   password: z.string().min(10).max(128),
 });
 export const userUpdateSchema = userSchema.extend({
@@ -76,6 +80,9 @@ export const layoutSchema = z.object({
         capacity: z.coerce.number().int().min(1).max(10000),
         unit_capacity: z.coerce.number().int().min(1).max(40000),
         storage_type: z.enum(["rack", "floor_storage", "walkway"]),
+        width_cm: z.coerce.number().positive().max(10000).default(120),
+        depth_cm: z.coerce.number().positive().max(10000).default(80),
+        height_cm: z.coerce.number().positive().max(10000).default(180),
         max_weight: z.coerce.number().positive().max(100000),
         max_size: z.enum(["Small", "Medium", "Large"]),
         category_id: id.nullable(),

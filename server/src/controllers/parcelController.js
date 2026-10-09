@@ -8,6 +8,7 @@ import { audit } from "../services/auditService.js";
 import { HttpError } from "../middleware/errorMiddleware.js";
 import { fitsLocation, sizeUnits } from "../algorithms/storageScoring.js";
 import { notify, capacityAlerts } from "../services/notificationService.js";
+import { classifyParcel } from "../algorithms/parcelDimensions.js";
 const requireParcel = async (id) => {
   const p = await findParcel(id);
   if (!p) throw new HttpError(404, "Parcel not found.");
@@ -37,7 +38,14 @@ export async function recommendations(req, res) {
 }
 export async function create(req, res) {
   const result = await atomic(async () => {
-    const p = req.body,
+    const p = {
+        ...req.body,
+        size: classifyParcel(
+          req.body,
+          (await get("SELECT size_limits FROM system_settings WHERE id=1"))
+            .size_limits,
+        ),
+      },
       rack = await findLocation(p.location_id);
     if (
       !(await get(
@@ -82,6 +90,19 @@ export async function create(req, res) {
         )
       ).lastInsertRowid,
     );
+    await run(
+      "UPDATE parcels SET length_cm=?,width_cm=?,height_cm=? WHERE id=?",
+      p.length_cm ?? null,
+      p.width_cm ?? null,
+      p.height_cm ?? null,
+      id,
+    );
+    if (rack.storage_type === "floor_storage")
+      await notify(
+        "floor_assignment",
+        `${code} assigned to floor storage ${rack.code}.`,
+        { userId: req.user.id, parcelId: id },
+      );
     await audit(req.user.id, "Check-in", {
       parcelId: id,
       newStatus: "Stored",
@@ -323,7 +344,14 @@ export async function verify(req, res) {
 export async function correct(req, res) {
   const result = await atomic(async () => {
     const old = await requireParcel(req.params.id),
-      p = req.body;
+      p = {
+        ...req.body,
+        size: classifyParcel(
+          req.body,
+          (await get("SELECT size_limits FROM system_settings WHERE id=1"))
+            .size_limits,
+        ),
+      };
     if (!(await get("SELECT id FROM categories WHERE id=?", p.category_id)))
       throw new HttpError(400, "Category not found.");
     if (old.status !== "Dispatched") {
@@ -351,6 +379,13 @@ export async function correct(req, res) {
       p.quantity,
       old.id,
     );
+    await run(
+      "UPDATE parcels SET length_cm=?,width_cm=?,height_cm=? WHERE id=?",
+      p.length_cm ?? null,
+      p.width_cm ?? null,
+      p.height_cm ?? null,
+      old.id,
+    );
     const updated = await findParcel(old.id),
       fields = [
         "description",
@@ -359,6 +394,9 @@ export async function correct(req, res) {
         "size",
         "weight",
         "quantity",
+        "length_cm",
+        "width_cm",
+        "height_cm",
       ];
     const snapshot = (record) =>
       Object.fromEntries(fields.map((key) => [key, record[key]]));

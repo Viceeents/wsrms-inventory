@@ -6,9 +6,16 @@ export default function DispatchRouteSummary({
   if (!route) return null;
   return (
     <div className="route-summary">
+      {route.rackLabel && (
+        <p>
+          <strong>Destination: {route.rackLabel}</strong> &middot; {route.locationCode}
+        </p>
+      )}
       <dl>
         <div>
-          <dt>Route to parcel</dt>
+          <dt>
+            {route.rackLabel ? "Route to destination" : "Route to parcel"}
+          </dt>
           <dd>{route.inboundSteps} steps</dd>
         </div>
         <div>
@@ -16,7 +23,7 @@ export default function DispatchRouteSummary({
           <dd>{route.returnSteps} steps</dd>
         </div>
         <div>
-          <dt>Total dispatch route</dt>
+          <dt>{route.rackLabel ? "Total route" : "Total dispatch route"}</dt>
           <dd>{route.totalSteps} steps</dd>
         </div>
       </dl>
@@ -31,7 +38,7 @@ export default function DispatchRouteSummary({
             className={direction === "inbound" ? "active" : ""}
             onClick={() => onDirection("inbound")}
           >
-            Route to parcel
+            {route.rackLabel ? "Route to destination" : "Route to parcel"}
           </button>
           <button
             type="button"

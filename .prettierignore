@@ -2,6 +2,9 @@ node_modules
 client/dist
 package-lock.json
 .env
+.env.local
+.env.*.local
+.vercel
 .local
 test-results
 playwright-report

@@ -68,19 +68,23 @@ export default function ParcelForm({
             />
           </Field>
         </div>
-        <Field
-          label="Parcel size"
-          hint="Small = 1 unit · Medium = 2 · Large = 4"
-        >
-          <select
-            value={value.size}
-            onChange={(e) => change("size", e.target.value)}
-          >
-            {["Small", "Medium", "Large"].map((s) => (
-              <option key={s}>{s}</option>
-            ))}
-          </select>
-        </Field>
+        {[
+          ["length_cm", "Length"],
+          ["width_cm", "Width"],
+          ["height_cm", "Height"],
+        ].map(([key, label]) => (
+          <Field key={key} label={`${label} (cm)`}>
+            <input
+              required
+              type="number"
+              min="0.1"
+              max="10000"
+              step="0.1"
+              value={value[key] ?? ""}
+              onChange={(e) => change(key, e.target.value)}
+            />
+          </Field>
+        ))}
         <Field label="Weight per item (kg)">
           <input
             type="number"

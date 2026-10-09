@@ -7,8 +7,13 @@ const neighbors = [
   [0, 1],
   [0, -1],
 ];
+const coordinate = (id) => {
+  const [row, col] = id.split("-").map(Number);
+  return { row, col };
+};
 const enrich = (result) => ({
   ...result,
+  path: result.path.map(coordinate),
   steps: result.path.length - 1,
   cost: result.distance,
 });
@@ -54,10 +59,11 @@ export function routeToLocation(warehouse, location, start) {
       const chosen = returns[0],
         outbound = chosen.result;
       candidates.push({
-        path: inbound.path,
+        path: inbound.path.map(coordinate),
         distance: inbound.path.length - 1,
         start: origin,
         target: target.id,
+        destination: coordinate(target.id),
         locationId: location.id,
         locationCode: location.code,
         accessPointId:

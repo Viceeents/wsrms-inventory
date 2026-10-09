@@ -5,20 +5,23 @@ import {
   listNotifications,
 } from "../services/notificationService.js";
 import { HttpError } from "../middleware/errorMiddleware.js";
-export const preferences = async (req, res) =>
-  res.json(
-    (await get(
-      "SELECT font_size,accent_color FROM user_preferences WHERE user_id=?",
-      req.user.id,
-    )) || { font_size: "medium", accent_color: "green" },
-  );
+export const preferences = async (req, res) => {
+  const preference = (await get(
+    "SELECT font_size,theme FROM user_preferences WHERE user_id=?",
+    req.user.id,
+  )) || { font_size: "medium", theme: "light" };
+  res.json({
+    ...preference,
+    theme: preference.theme === "dark" ? "dark" : "light",
+  });
+};
 export async function savePreferences(req, res) {
-  const { font_size, accent_color } = req.body;
+  const { font_size, theme } = req.body;
   await run(
-    "INSERT INTO user_preferences(user_id,font_size,accent_color) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET font_size=excluded.font_size,accent_color=excluded.accent_color",
+    "INSERT INTO user_preferences(user_id,font_size,theme) VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET font_size=excluded.font_size,theme=excluded.theme",
     req.user.id,
     font_size,
-    accent_color,
+    theme,
   );
   res.json(req.body);
 }
@@ -35,6 +38,11 @@ export async function saveSystemSettings(req, res) {
       req.body.near_full_threshold,
       JSON.stringify(req.body.notification_events),
     );
+    if (req.body.size_limits)
+      await run(
+        "UPDATE system_settings SET size_limits=?::jsonb WHERE id=1",
+        JSON.stringify(req.body.size_limits),
+      );
     await audit(req.user.id, "System settings updated", {
       metadata: { before, after: req.body },
     });

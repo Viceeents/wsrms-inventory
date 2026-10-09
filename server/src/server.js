@@ -1,3 +1,4 @@
+import { startBackupSchedule } from "./services/backupService.js";
 import app from "./app.js";
 import { env } from "./config/env.js";
 import { db, initializeDatabase } from "./config/database.js";
@@ -12,6 +13,7 @@ try {
   await db.close();
   process.exit(1);
 }
+startBackupSchedule();
 const server = app.listen(env.port, env.host, () =>
   console.log(`WSRMS API: http://${env.host}:${env.port}`),
 );

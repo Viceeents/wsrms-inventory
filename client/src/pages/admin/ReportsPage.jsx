@@ -1,5 +1,6 @@
 import { Download, Package, Truck, Boxes, PackageCheck } from "lucide-react";
 import useApi from "../../hooks/useApi";
+import { neutralColor } from "../../utils/neutralColor";
 import {
   PageTitle,
   Card,
@@ -59,7 +60,7 @@ export default function ReportsPage() {
                   {r.categories.map((c) => (
                     <div className="category-report-row" key={c.name}>
                       <span>
-                        <i style={{ background: c.color }} />
+                        <i style={{ background: neutralColor(c.color) }} />
                         {c.name}
                       </span>
                       <strong>{c.count}</strong>

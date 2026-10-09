@@ -45,7 +45,16 @@ export default function NotificationsPage() {
                 <div>
                   <strong>{n.message}</strong>
                   <p>
-                    {n.type.replaceAll("_", " ")} · {formatDate(n.created_at)}
+                    {
+                      {
+                        info: "Informational",
+                        success: "Success",
+                        warning: "Warning",
+                        critical: "Critical",
+                        error: "Critical",
+                      }[n.severity]
+                    }{" "}
+                    - {n.type.replaceAll("_", " ")} · {formatDate(n.created_at)}
                   </p>
                   {n.parcel_id && (
                     <Link

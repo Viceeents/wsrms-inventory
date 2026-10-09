@@ -14,7 +14,7 @@ const cookieOptions = {
 };
 export async function login(req, res) {
   const user = await get(
-    "SELECT * FROM users WHERE email=? AND active=1",
+    "SELECT * FROM users WHERE email=? AND active=1 AND suspended=false AND deleted_at IS NULL",
     req.body.email.toLowerCase(),
   );
   // Always run a password hash to reduce account-discovery timing differences.
@@ -31,10 +31,22 @@ export async function login(req, res) {
       new Date().toISOString(),
     );
     await run(
-      "INSERT INTO sessions VALUES(?,?,?)",
+      "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",
       tokenHash(token),
       user.id,
       new Date(Date.now() + cookieOptions.maxAge).toISOString(),
+    );
+    await run(
+      "UPDATE users SET last_login_at=?,last_activity_at=? WHERE id=?",
+      new Date().toISOString(),
+      new Date().toISOString(),
+      user.id,
+    );
+    await run(
+      "UPDATE sessions SET last_seen_at=?,last_activity_at=? WHERE token_hash=?",
+      new Date().toISOString(),
+      new Date().toISOString(),
+      tokenHash(token),
     );
     await audit(user.id, "Sign-in");
   });
@@ -42,6 +54,16 @@ export async function login(req, res) {
   res.cookie("wsrms_session", token, cookieOptions).json(safe);
 }
 export async function logout(req, res) {
+  const session = await get(
+    "SELECT user_id FROM sessions WHERE token_hash=?",
+    tokenHash(readToken(req)),
+  );
+  if (session)
+    await run(
+      "UPDATE users SET last_logout_at=? WHERE id=?",
+      new Date().toISOString(),
+      session.user_id,
+    );
   await run(
     "DELETE FROM sessions WHERE token_hash=?",
     tokenHash(readToken(req)),

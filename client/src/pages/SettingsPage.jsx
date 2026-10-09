@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { Check, Type, Palette } from "lucide-react";
-import { useAppearance, palette } from "../context/AppearanceContext";
+import { Check, Type } from "lucide-react";
+import { useAppearance } from "../context/AppearanceContext";
 import { PageTitle, Card, Field, ErrorMessage } from "../components/common/UI";
 import Button from "../components/common/Button";
 import StatusBadge from "../components/common/StatusBadge";
@@ -29,7 +29,7 @@ export default function SettingsPage() {
     <>
       <PageTitle
         title="Appearance settings"
-        description="Choose a comfortable font size and a readable accent color. Saved to your account."
+        description="Choose your theme and font size."
       />
       <ErrorMessage message={error} />
       {saved && (
@@ -56,31 +56,15 @@ export default function SettingsPage() {
                 ))}
               </select>
             </Field>
-            <fieldset className="accent-options">
-              <legend>
-                <Palette size={16} />
-                Accent color
-              </legend>
-              {Object.entries(palette).map(([key, color]) => (
-                <label
-                  className={draft.accent_color === key ? "selected" : ""}
-                  key={key}
-                >
-                  <input
-                    type="radio"
-                    name="accent-color"
-                    value={key}
-                    checked={draft.accent_color === key}
-                    onChange={() => {
-                      setDraft({ ...draft, accent_color: key });
-                      setSaved(false);
-                    }}
-                  />
-                  <span style={{ background: color }} />
-                  {key[0].toUpperCase() + key.slice(1)}
-                </label>
-              ))}
-            </fieldset>
+            <Field label="Theme">
+              <select
+                value={draft.theme}
+                onChange={(e) => setDraft({ ...draft, theme: e.target.value })}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </Field>
             <Button loading={busy} className="mt-6">
               Save appearance
             </Button>
@@ -90,14 +74,14 @@ export default function SettingsPage() {
           <div className="card-body">
             <Type size={32} className="muted mb-5" />
             <p className="muted">
-              Five predefined colors keep white button text readable. Font
+              Light and dark themes use readable surfaces and text. Font
               settings scale navigation, forms, labels, and inventory details.
             </p>
             <div className="appearance-example">
               <h3>Every parcel, accounted for.</h3>
               <p>
                 Buttons, active navigation, route highlights, and status badges
-                use your saved accent.
+                follow your theme.
               </p>
               <Button type="button">Example action</Button>
               <StatusBadge status="Available" />

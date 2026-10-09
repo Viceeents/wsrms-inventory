@@ -83,8 +83,11 @@ test("Routing ends adjacent to the target rack", () => {
     { id: 1, code: "A-01", row: 2, col: 2, cell_id: "2-2" },
   );
   assert.equal(route.distance, 3);
-  assert.equal(route.path.includes("2-2"), false);
-  const [r, c] = route.path.at(-1).split("-").map(Number);
+  assert.equal(
+    route.path.some(({ row, col }) => row === 2 && col === 2),
+    false,
+  );
+  const { row: r, col: c } = route.path.at(-1);
   assert.equal(Math.abs(r - 2) + Math.abs(c - 2), 1);
 });
 test("Blocked aisles produce a detour and never appear in the path", () => {
@@ -98,7 +101,8 @@ test("Blocked aisles produce a detour and never appear in the path", () => {
   assert.ok(route.distance > 3);
   assert.ok(
     route.path.every(
-      (id) => changed.find((c) => c.id === id).type !== "blocked",
+      ({ row, col }) =>
+        changed.find((c) => c.row === row && c.col === col).type !== "blocked",
     ),
   );
 });
@@ -184,9 +188,15 @@ test("One shared access point produces independent outbound and return paths", (
   assert.equal(route.inboundSteps, 2);
   assert.equal(route.returnSteps, 4);
   assert.equal(route.totalSteps, 6);
-  assert.deepEqual(route.outbound.path, ["0-2", "1-2", "1-1", "1-0", "0-0"]);
+  assert.deepEqual(route.outbound.path, [
+    { row: 0, col: 2 },
+    { row: 1, col: 2 },
+    { row: 1, col: 1 },
+    { row: 1, col: 0 },
+    { row: 0, col: 0 },
+  ]);
   assert.equal(route.revision, 7);
-  assert.equal(route.path.at(-1), "0-2");
+  assert.deepEqual(route.path.at(-1), { row: 0, col: 2 });
   const closed = loop.map((c) =>
     c.id === "1-1" ? { ...c, active: false } : c,
   );
@@ -199,7 +209,10 @@ test("Floor storage may be walkable or served from an adjacent aisle", () => {
       c.id === "2-2" ? { ...c, type: "floor_storage", walkable } : c,
     );
     const route = routeToLocation({ cells: draft }, { cell_id: "2-2" });
-    assert.equal(route.path.includes("2-2"), walkable);
+    assert.equal(
+      route.path.some(({ row, col }) => row === 2 && col === 2),
+      walkable,
+    );
     assert.equal(route.returnSteps, route.inboundSteps);
   }
   const g = buildGraph(

@@ -1,3 +1,5 @@
+import useDraft from "../hooks/useDraft";
+import DraftNotice from "../components/common/DraftNotice";
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Printer, Truck, Route, ArrowRightLeft, Pencil } from "lucide-react";
@@ -17,6 +19,7 @@ import StatusBadge from "../components/common/StatusBadge";
 import Button from "../components/common/Button";
 import Modal from "../components/common/Modal";
 import ParcelDetails from "../components/parcel/ParcelDetails";
+import RouteUnavailable from "../components/warehouse/RouteUnavailable";
 import WarehouseGrid from "../components/warehouse/WarehouseGrid";
 import TransactionTable from "../components/transaction/TransactionTable";
 import TransactionDetails from "../components/transaction/TransactionDetails";
@@ -30,6 +33,7 @@ export default function ParcelDetailsPage() {
     warehouse = useApi("/warehouse"),
     transactions = useApi(`/transactions?parcel=${id}`),
     [route, setRoute] = useState(null),
+    [routeFailure, setRouteFailure] = useState(null),
     [direction, setDirection] = useState("inbound"),
     [error, setError] = useState(""),
     [transfer, setTransfer] = useState(null),
@@ -39,15 +43,30 @@ export default function ParcelDetailsPage() {
   const { user } = useAuth(),
     categories = useApi("/categories"),
     [edit, setEdit] = useState(null);
+  const recovery = useDraft(`parcel-edit-${id}`, edit, setEdit, !!edit);
   const p = parcel.data;
   useEffect(() => {
     setRoute(null);
   }, [id]);
+  useEffect(() => {
+    if (route?.revision && route.revision !== warehouse.data?.revision)
+      setRoute(null);
+  }, [route, warehouse.data?.revision]);
   async function getRoute() {
     setError("");
     try {
-      setRoute(await parcelService.route(id));
+      setRoute(null);
+      const [next, current] = await Promise.all([
+        parcelService.route(id),
+        api("/warehouse"),
+      ]);
+      if (next.revision !== current.revision)
+        throw new Error("Warehouse layout changed. Show the route again.");
+      warehouse.setData(current);
+      setRoute(next);
     } catch (e) {
+      setRoute(null);
+      setRouteFailure(e.message);
       setError(e.message);
     }
   }
@@ -57,6 +76,7 @@ export default function ParcelDetailsPage() {
     setError("");
     try {
       await api(`/parcels/${id}`, { method: "PATCH", body: edit });
+      recovery.clear();
       setEdit(null);
       parcel.reload();
       warehouse.reload();
@@ -98,6 +118,10 @@ export default function ParcelDetailsPage() {
       <Link to="/parcels" className="back-link">
         ← Back to parcels
       </Link>
+      <RouteUnavailable
+        message={routeFailure}
+        onClose={() => setRouteFailure(null)}
+      />
       <PageTitle
         eyebrow="PARCEL RECORD"
         title={p.code}
@@ -131,6 +155,12 @@ export default function ParcelDetailsPage() {
           </Link>
         )}
       </PageTitle>
+      {user.role === "admin" && (
+        <DraftNotice
+          draft={recovery}
+          label="Unfinished parcel correction found"
+        />
+      )}
       <ErrorMessage message={error} />
       <div className="detail-layout">
         <Card title="Parcel information">
@@ -159,7 +189,7 @@ export default function ParcelDetailsPage() {
             p.status !== "Dispatched" && (
               <Button variant="secondary" onClick={getRoute}>
                 <Route size={16} />
-                Show shortest route
+                Show Route
               </Button>
             )
           }
@@ -184,7 +214,7 @@ export default function ParcelDetailsPage() {
             />
             {!route && (
               <p className="muted text-sm mt-4">
-                Select “Show shortest route” to plan retrieval and return to the
+                Select “Show Route” to plan retrieval and return to the
                 Warehouse Access Point.
               </p>
             )}

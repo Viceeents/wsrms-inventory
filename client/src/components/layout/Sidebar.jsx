@@ -26,6 +26,7 @@ export const navGroups = [
     items: [
       ["/", "Overview", LayoutDashboard],
       ["/notifications", "Notifications", Bell],
+      ["/profile", "Profile", Users],
       ["/settings", "Appearance settings", Settings],
     ],
   },
@@ -56,6 +57,8 @@ export const navGroups = [
     title: "ADMINISTRATION",
     admin: true,
     items: [
+      ["/admin/database", "Database health", History],
+      ["/admin/profile-requests", "Profile requests", Users],
       ["/admin/layout", "Layout editor", Grid2X2],
       ["/admin/users", "Team members", Users],
       ["/admin/categories", "Categories", Tags],
@@ -79,7 +82,7 @@ export default function Sidebar({ open, onClose }) {
             <Box size={25} />
           </span>
           <span>
-            wsrms<span className="brand-caption">WAREHOUSE MANAGEMENT</span>
+            Storix<span className="brand-caption">WAREHOUSE MANAGEMENT</span>
           </span>
         </NavLink>
         <div className="workspace-pill">
@@ -114,11 +117,15 @@ export default function Sidebar({ open, onClose }) {
         </nav>
         <div className="sidebar-footer">
           <span className="avatar">
-            {user.name
-              .split(" ")
-              .map((n) => n[0])
-              .slice(0, 2)
-              .join("")}
+            {user.profile_image ? (
+              <img src={user.profile_image} alt="" />
+            ) : (
+              user.name
+                .split(" ")
+                .map((n) => n[0])
+                .slice(0, 2)
+                .join("")
+            )}
           </span>
           <div>
             <strong>{user.name}</strong>

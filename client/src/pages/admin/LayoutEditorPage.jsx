@@ -1,3 +1,5 @@
+import useDraft from "../../hooks/useDraft";
+import DraftNotice from "../../components/common/DraftNotice";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, Info } from "lucide-react";
@@ -30,6 +32,15 @@ export default function LayoutEditorPage() {
       setDirty(false);
     }
   }, [warehouse.data]);
+  const recovery = useDraft(
+    "warehouse-layout",
+    draft,
+    (value) => {
+      setDraft(value);
+      setDirty(true);
+    },
+    dirty,
+  );
   function commit(next) {
     setDraft(next);
     setDirty(true);
@@ -105,6 +116,7 @@ export default function LayoutEditorPage() {
     setError("");
     try {
       const w = await warehouseService.save(draft);
+      recovery.clear();
       warehouse.setData(w);
       setWarnings(w.warnings || []);
       setDirty(false);
@@ -125,6 +137,10 @@ export default function LayoutEditorPage() {
         eyebrow="ADMINISTRATION"
         title="Warehouse layout editor"
         description="Configure the physical layout, inventory locations, and movement access."
+      />
+      <DraftNotice
+        draft={recovery}
+        label="Unfinished layout configuration found"
       />
       <ErrorMessage message={error} />
       {success && (
@@ -148,6 +164,7 @@ export default function LayoutEditorPage() {
             busy={busy}
             onSave={save}
             onReset={() => {
+              recovery.clear();
               setDraft(structuredClone(warehouse.data));
               setDirty(false);
               setError("");
@@ -342,6 +359,31 @@ export default function LayoutEditorPage() {
                             }
                           />
                         </Field>
+                        {[
+                          ["width_cm", "Width"],
+                          ["depth_cm", "Depth"],
+                          ["height_cm", "Height"],
+                        ].map(([key, label]) => (
+                          <Field key={key} label={`${label} (cm)`}>
+                            <input
+                              type="number"
+                              min="0.1"
+                              max="10000"
+                              step="0.1"
+                              value={
+                                location[key] ??
+                                (key === "width_cm"
+                                  ? 120
+                                  : key === "depth_cm"
+                                    ? 80
+                                    : 180)
+                              }
+                              onChange={(e) =>
+                                changeLocation(key, Number(e.target.value))
+                              }
+                            />
+                          </Field>
+                        ))}
                         <Field label="Maximum total weight (kg)">
                           <input
                             type="number"

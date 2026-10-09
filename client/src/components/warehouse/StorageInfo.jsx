@@ -3,7 +3,12 @@ import { Link } from "react-router-dom";
 import StatusBadge from "../common/StatusBadge";
 import { Progress } from "../common/UI";
 import { locationLabel, storageType } from "../../utils/storage";
-export default function StorageInfo({ location }) {
+import Button from "../common/Button";
+export default function StorageInfo({
+  location,
+  onShowPath,
+  routeBusy = false,
+}) {
   if (!location)
     return (
       <div className="rack-placeholder">
@@ -23,6 +28,16 @@ export default function StorageInfo({ location }) {
       <h2>{locationLabel(location)}</h2>
       <p className="muted text-sm mb-3">{storageType(location.storage_type)}</p>
       <StatusBadge status={location.inventory_status} />
+      {onShowPath && (
+        <Button
+          variant="primary"
+          className="w-full mt-3"
+          disabled={routeBusy}
+          onClick={onShowPath}
+        >
+          {routeBusy ? "Finding path…" : "Show Best Path"}
+        </Button>
+      )}
       <div className="rack-occupancy">
         <div className="flex justify-between">
           <span>Current parcels</span>
@@ -52,6 +67,16 @@ export default function StorageInfo({ location }) {
           <dd>
             {Number(location.used_weight).toFixed(1)} / {location.max_weight} kg
           </dd>
+        </div>
+        <div>
+          <dt>Dimensions</dt>
+          <dd>
+            {location.width_cm} x {location.depth_cm} x {location.height_cm} cm
+          </dd>
+        </div>
+        <div>
+          <dt>Available capacity</dt>
+          <dd>{Math.max(0, location.capacity - location.occupancy)}</dd>
         </div>
         <div>
           <dt>Maximum size</dt>

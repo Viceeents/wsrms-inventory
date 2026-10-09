@@ -1,3 +1,4 @@
+import { useSearchParams } from "react-router-dom";
 import { useState } from "react";
 import useApi from "../hooks/useApi";
 import { queryString } from "../services/api";
@@ -7,14 +8,18 @@ import Modal from "../components/common/Modal";
 import TransactionTable from "../components/transaction/TransactionTable";
 import TransactionDetails from "../components/transaction/TransactionDetails";
 export default function TransactionsPage() {
+  const [params] = useSearchParams();
   const [q, setQ] = useState(""),
     [search, setSearch] = useState(""),
     [type, setType] = useState(""),
     [selected, setSelected] = useState(null),
     [page, setPage] = useState(1),
-    transactions = useApi(`/transactions${queryString({ q, type })}`, {
-      poll: true,
-    });
+    transactions = useApi(
+      `/transactions${queryString({ q, type, parcel: params.get("parcel") || "" })}`,
+      {
+        poll: true,
+      },
+    );
   return (
     <>
       <PageTitle
@@ -52,15 +57,24 @@ export default function TransactionsPage() {
               "Storage transfer",
               "Retrieval",
               "Dispatch",
-              "Layout change",
+              "WAREHOUSE_LAYOUT_CHANGED",
+              "PROFILE_IMAGE_APPROVED",
+              "PROFILE_IMAGE_REJECTED",
+              "DATABASE_RESTORE_REQUESTED",
+              "DATABASE_RESTORE",
+              "BACKUP_COMPLETED",
+              "BACKUP_FAILED",
+              "UNAUTHORIZED_ADMIN_ACTION",
               "User created",
-              "User updated",
+              "USER_STATUS_CHANGED",
               "Category created",
               "Category updated",
               "Sign-in",
               "Manual correction",
             ].map((t) => (
-              <option key={t}>{t}</option>
+              <option key={t} value={t}>
+                {t.includes("_") ? t.toLowerCase().replaceAll("_", " ") : t}
+              </option>
             ))}
           </select>
         </form>

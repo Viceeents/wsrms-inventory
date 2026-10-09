@@ -9,6 +9,9 @@ test("Batch labels remain printable when selections change", async ({
       description: `Batch print parcel ${i}`,
       category_id: 1,
       size: "Small",
+      length_cm: 20,
+      width_cm: 15,
+      height_cm: 10,
       weight: 1,
       quantity: 1,
     };
@@ -72,6 +75,9 @@ test("Staff checks in, generates printable labels, scans, and dispatches with ve
     .getByLabel("Category", { exact: true })
     .selectOption({ label: "General" });
   await page.getByLabel("Parcel description").fill("Browser workflow parcel");
+  await page.getByLabel("Length (cm)").fill("20");
+  await page.getByLabel("Width (cm)").fill("15");
+  await page.getByLabel("Height (cm)").fill("10");
   await page.getByLabel("Weight per item (kg)").fill("1.2");
   await page.getByRole("button", { name: "Recommend storage" }).click();
   await expect(
@@ -202,6 +208,9 @@ test("Floor cells show inventory and dispatch displays both independently calcul
     tracking_number: "UI-FLOOR-100",
     category_id: 1,
     size: "Small",
+    length_cm: 20,
+    width_cm: 15,
+    height_cm: 10,
     weight: 1,
     quantity: 4,
     location_id: floor.id,
@@ -239,9 +248,9 @@ test("Floor cells show inventory and dispatch displays both independently calcul
   await page
     .getByRole("button", { name: "Return to Access Point", exact: true })
     .click();
-  await expect(page.locator(".route-overlay polyline")).toHaveAttribute(
+  await expect(page.locator(".route-overlay polyline").last()).toHaveAttribute(
     "stroke-dasharray",
-    ".18 .10",
+    ".20 .10",
   );
   await page.getByRole("button", { name: "Mark as retrieved" }).click();
   await page.getByLabel("Scanned parcel code").fill("WRONG-FLOOR");
@@ -280,12 +289,12 @@ test("Appearance persists per account and admin can configure floor access and n
   await login(page);
   await page.goto("/settings");
   await page.getByLabel("Font size").selectOption("large");
-  await page.getByRole("radio", { name: "Purple" }).check();
+  await page.getByLabel("Theme", { exact: true }).selectOption("dark");
   await page.getByRole("button", { name: "Save appearance" }).click();
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "purple");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(page.locator("html")).toHaveAttribute("data-font", "large");
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "purple");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   expect(
     await page.locator("html").evaluate((el) => getComputedStyle(el).fontSize),
   ).toBe("17px");
@@ -296,7 +305,7 @@ test("Appearance persists per account and admin can configure floor access and n
         .getByRole("button", { name: "Save appearance" })
         .evaluate((el) => getComputedStyle(el).backgroundColor),
     )
-    .toBe("rgb(109, 40, 217)");
+    .toBe("rgb(23, 105, 210)");
   await page.goto("/admin/layout");
   await page.getByRole("button", { name: /Floor Storage.*FLOOR-G09/ }).click();
   await page.getByLabel("Walkable", { exact: true }).check();
@@ -319,7 +328,7 @@ test("Appearance persists per account and admin can configure floor access and n
   await page.getByRole("button", { name: "Save system settings" }).click();
   await page.request.post("/api/auth/logout");
   await login(page, "staff");
-  await expect(page.locator("html")).toHaveAttribute("data-accent", "green");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await page.goto("/admin/settings");
   await expect(
     page.getByRole("heading", { name: /Welcome back,/ }),

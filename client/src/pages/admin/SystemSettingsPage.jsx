@@ -19,6 +19,7 @@ const events = {
   blocked_route: "Blocked routes / rejected layout changes",
   storage_unavailable: "Storage recommendation unavailable",
   layout_change: "Layout changed / accessibility warnings",
+  floor_assignment: "Floor-storage assignments",
 };
 export default function SystemSettingsPage() {
   const settings = useApi("/system-settings"),
@@ -81,6 +82,33 @@ export default function SystemSettingsPage() {
                   this option is disabled. New check-ins and transfers cannot
                   use floor storage.
                 </p>
+                <fieldset>
+                  <legend>Parcel size limits (cm)</legend>
+                  {["Small", "Medium"].map((size) => (
+                    <div className="form-grid" key={size}>
+                      {["Length", "Width", "Height"].map((label, i) => (
+                        <Field
+                          key={label}
+                          label={`${size} ${label.toLowerCase()} limit`}
+                        >
+                          <input
+                            type="number"
+                            required
+                            min="0.1"
+                            max="10000"
+                            step="0.1"
+                            value={draft.size_limits?.[size]?.[i] || ""}
+                            onChange={(e) => {
+                              const next = structuredClone(draft.size_limits);
+                              next[size][i] = Number(e.target.value);
+                              setDraft({ ...draft, size_limits: next });
+                            }}
+                          />
+                        </Field>
+                      ))}
+                    </div>
+                  ))}
+                </fieldset>
                 <Field
                   label="Nearing capacity threshold (%)"
                   hint="Alerts consider parcel capacity, size units, and weight limits."

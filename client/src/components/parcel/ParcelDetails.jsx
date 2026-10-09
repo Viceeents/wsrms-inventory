@@ -15,6 +15,14 @@ export default function ParcelDetails({ parcel: p }) {
         <dd>{p.size}</dd>
       </div>
       <div>
+        <dt>Dimensions</dt>
+        <dd>
+          {p.length_cm
+            ? `${p.length_cm} x ${p.width_cm} x ${p.height_cm} cm`
+            : "Not measured (legacy record)"}
+        </dd>
+      </div>
+      <div>
         <dt>Quantity</dt>
         <dd>{p.quantity}</dd>
       </div>

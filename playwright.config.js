@@ -6,12 +6,13 @@ export default defineConfig({
   timeout: 30000,
   reporter: "list",
   use: {
-    baseURL: "http://127.0.0.1:5174",
+    baseURL: process.env.DEPLOYED_BASE_URL || "http://127.0.0.1:5174",
     headless: true,
     trace: "retain-on-failure",
   },
-  webServer:
-    process.env.UI_PRODUCTION === "true"
+  webServer: process.env.DEPLOYED_BASE_URL
+    ? undefined
+    : process.env.UI_PRODUCTION === "true"
       ? [
           {
             command: "node server/src/server.js",

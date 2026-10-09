@@ -1,4 +1,5 @@
 import app from "../server/src/app.js";
+import { recoveryMessage } from "../server/src/utils/databaseAvailability.js";
 import { initializeDatabase } from "../server/src/config/database.js";
 
 let initialization;
@@ -17,8 +18,7 @@ export default async function handler(req, res) {
     res.writeHead(503, { "Content-Type": "application/json" });
     return res.end(
       JSON.stringify({
-        message:
-          "The database is unavailable. Check the deployment DATABASE_URL and PostgreSQL access.",
+        message: recoveryMessage,
       }),
     );
   }

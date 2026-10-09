@@ -1,3 +1,4 @@
+import { dimensionsFit } from "./parcelDimensions.js";
 export const sizeUnits = { Small: 1, Medium: 2, Large: 4 };
 export function fitsLocation(
   location,
@@ -5,6 +6,7 @@ export function fitsLocation(
   { floor_storage_enabled = true } = {},
 ) {
   return (
+    dimensionsFit(parcel, location) &&
     location.active &&
     location.can_store &&
     location.availability === "Available" &&

@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.local/
+.vercel/
+database/local-pg/
+node_modules/
+client/dist/
+test-results/
+playwright-report/
+tests/
+*.log

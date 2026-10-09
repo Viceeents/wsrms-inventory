@@ -5,6 +5,20 @@ export class HttpError extends Error {
   }
 }
 export default function errorMiddleware(error, req, res, next) {
+  if (isDatabaseUnavailable(error)) {
+    console.error(
+      "Database connection unavailable:",
+      error.code || "disconnected",
+    );
+    return res
+      .status(503)
+      .set("Retry-After", "5")
+      .json({
+        message: recoveryMessage,
+        code: "DATABASE_RECOVERING",
+        retryable: false,
+      });
+  }
   if (error.status)
     return res.status(error.status).json({
       message: error.message,
@@ -26,3 +40,7 @@ export default function errorMiddleware(error, req, res, next) {
     message: "Something went wrong. Please try again.",
   });
 }
+import {
+  isDatabaseUnavailable,
+  recoveryMessage,
+} from "../utils/databaseAvailability.js";

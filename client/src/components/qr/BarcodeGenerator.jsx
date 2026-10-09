@@ -5,10 +5,12 @@ export default function BarcodeGenerator({ value }) {
   useLayoutEffect(() => {
     JsBarcode(ref.current, value, {
       format: "CODE128",
-      width: 1.5,
+      width: 2,
       height: 42,
       displayValue: false,
-      margin: 0,
+      margin: 10,
+      marginTop: 0,
+      marginBottom: 0,
     });
   }, [value]);
   return (

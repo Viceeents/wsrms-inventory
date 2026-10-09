@@ -31,7 +31,7 @@ export default function LoginPage() {
             <Box />
           </span>
           <span>
-            wsrms<span className="brand-caption">WAREHOUSE MANAGEMENT</span>
+            Storix<span className="brand-caption">WAREHOUSE MANAGEMENT</span>
           </span>
         </div>
         <div className="login-story-content">

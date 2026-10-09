@@ -17,7 +17,9 @@ try {
     ? ["node_modules/@playwright/test/cli.js", "test"]
     : [
         "--test",
+        ...process.argv.slice(2),
         "tests/pathfinding/routing.test.js",
+        "tests/pathfinding/ha.test.js",
         "tests/backend/api.test.js",
       ];
   const child = spawn(process.execPath, args, {
@@ -26,6 +28,10 @@ try {
     env: {
       ...process.env,
       DB_SCHEMA: schema,
+      BACKUP_DIRECTORY: `${root}/.local/test-backups/${schema}`,
+      BACKUP_INTERVAL_HOURS: "0",
+      EMERGENCY_DATABASE_URL: "",
+      BACKUP_DATABASE_URL: "",
       SEED_DEMO: "false",
       ADMIN_PASSWORD: "Warehouse@2026",
       STAFF_PASSWORD: "Staff@2026",

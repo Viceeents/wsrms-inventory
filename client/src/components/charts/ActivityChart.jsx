@@ -9,6 +9,7 @@ import {
 } from "chart.js";
 import { Bar, Doughnut } from "react-chartjs-2";
 import { useAppearance } from "../../context/AppearanceContext";
+import { neutralColor } from "../../utils/neutralColor";
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -18,7 +19,8 @@ ChartJS.register(
   ArcElement,
 );
 export default function ActivityChart({ days }) {
-  const { accent } = useAppearance();
+  const { accent, theme } = useAppearance();
+  const text = theme === "dark" ? "#e2e2e2" : "#656565";
   return (
     <div className="activity-chart">
       <Bar
@@ -40,7 +42,7 @@ export default function ActivityChart({ days }) {
             {
               label: "Dispatches",
               data: days.map((d) => d.dispatches),
-              backgroundColor: "#e4c78f",
+              backgroundColor: "#c9c9c9",
               borderRadius: 4,
               maxBarThickness: 18,
             },
@@ -53,6 +55,7 @@ export default function ActivityChart({ days }) {
             legend: {
               position: "bottom",
               labels: {
+                color: text,
                 usePointStyle: true,
                 pointStyle: "rectRounded",
                 boxWidth: 9,
@@ -65,13 +68,13 @@ export default function ActivityChart({ days }) {
             x: {
               grid: { display: false },
               border: { display: false },
-              ticks: { font: { size: 11 } },
+              ticks: { color: text, font: { size: 11 } },
             },
             y: {
               beginAtZero: true,
               border: { display: false },
-              grid: { color: "#f0f1ec" },
-              ticks: { precision: 0, font: { size: 11 } },
+              grid: { color: theme === "dark" ? "#4e4e4e" : "#f0f0f0" },
+              ticks: { color: text, precision: 0, font: { size: 11 } },
             },
           },
         }}
@@ -80,6 +83,7 @@ export default function ActivityChart({ days }) {
   );
 }
 export function CategoryChart({ categories }) {
+  const { theme } = useAppearance();
   return (
     <div className="category-chart">
       <Doughnut
@@ -88,9 +92,9 @@ export function CategoryChart({ categories }) {
           datasets: [
             {
               data: categories.map((c) => c.count),
-              backgroundColor: categories.map((c) => c.color),
+              backgroundColor: categories.map((c) => neutralColor(c.color)),
               borderWidth: 4,
-              borderColor: "#fff",
+              borderColor: theme === "dark" ? "#282828" : "#ffffff",
             },
           ],
         }}

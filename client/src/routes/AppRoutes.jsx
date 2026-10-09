@@ -2,6 +2,11 @@ import { Routes, Route, Link } from "react-router-dom";
 import { lazy } from "react";
 import ProtectedRoute from "./ProtectedRoute";
 import AppLayout from "../components/layout/AppLayout";
+const ProfilePage = lazy(() => import("../pages/ProfilePage"));
+const ProfileRequestsPage = lazy(
+  () => import("../pages/admin/ProfileRequestsPage"),
+);
+const DatabasePage = lazy(() => import("../pages/admin/DatabasePage"));
 const LoginPage = lazy(() => import("../pages/LoginPage"));
 const DashboardPage = lazy(() => import("../pages/DashboardPage"));
 const CheckInPage = lazy(() => import("../pages/CheckInPage"));
@@ -40,9 +45,15 @@ export default function AppRoutes() {
           <Route path="inventory" element={<InventoryPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
           <Route path="notifications" element={<NotificationsPage />} />
+          <Route path="profile" element={<ProfilePage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="labels" element={<LabelPrintPage />} />
           <Route element={<ProtectedRoute admin />}>
+            <Route path="admin/database" element={<DatabasePage />} />
+            <Route
+              path="admin/profile-requests"
+              element={<ProfileRequestsPage />}
+            />
             <Route path="admin/settings" element={<SystemSettingsPage />} />
             <Route path="admin/layout" element={<LayoutEditorPage />} />
             <Route path="admin/users" element={<UsersPage />} />

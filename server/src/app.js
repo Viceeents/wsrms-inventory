@@ -14,6 +14,8 @@ import userRoutes from "./routes/userRoutes.js";
 import categoryRoutes from "./routes/categoryRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import settingsRoutes from "./routes/settingsRoutes.js";
+import recoveryRoutes from "./routes/recoveryRoutes.js";
+import messageRoutes from "./routes/messageRoutes.js";
 import { summary } from "./controllers/reportController.js";
 const app = express();
 if (process.env.VERCEL === "1") app.set("trust proxy", 1);
@@ -60,7 +62,9 @@ app.get("/api/health", (req, res) =>
 );
 app.use("/api/auth", authRoutes);
 app.use("/api", auth);
+app.use("/api/messages", messageRoutes);
 app.use("/api", settingsRoutes);
+app.use("/api", recoveryRoutes);
 app.get("/api/dashboard", summary);
 app.use("/api/parcels", parcelRoutes);
 app.use("/api/warehouse", warehouseRoutes);

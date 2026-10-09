@@ -4,8 +4,10 @@
   "installCommand": "npm ci --include=dev",
   "buildCommand": "npm run build",
   "outputDirectory": "client/dist",
+  "regions": ["sin1"],
   "functions": {
     "api/index.js": {
+      "maxDuration": 60,
       "includeFiles": "database/**"
     }
   },

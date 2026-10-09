@@ -3,6 +3,8 @@ import { Loading } from "../common/UI";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./Sidebar";
 import Header from "./Header";
+import MobileNavigation from "./MobileNavigation";
+import ChatLauncher from "./ChatLauncher";
 export default function AppLayout() {
   const [open, setOpen] = useState(false);
   return (
@@ -16,10 +18,12 @@ export default function AppLayout() {
           </Suspense>
         </main>
         <footer className="app-footer">
-          <span>WSRMS · Every parcel, accounted for.</span>
+          <span>Storix · Every parcel, accounted for.</span>
           <span>All times in Philippine Standard Time</span>
         </footer>
       </div>
+      <MobileNavigation />
+      <ChatLauncher />
     </div>
   );
 }

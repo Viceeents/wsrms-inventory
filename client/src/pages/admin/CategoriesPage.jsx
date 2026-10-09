@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Plus, Pencil, Tags } from "lucide-react";
 import useApi from "../../hooks/useApi";
 import { api } from "../../services/api";
+import { neutralColor } from "../../utils/neutralColor";
 import {
   PageTitle,
   Card,
@@ -43,7 +44,7 @@ export default function CategoriesPage() {
       >
         <Button
           onClick={() => {
-            setEdit({ name: "", color: "#688d77", active: 1 });
+            setEdit({ name: "", color: "#666666", active: 1 });
             setError("");
           }}
         >
@@ -58,7 +59,10 @@ export default function CategoriesPage() {
             <div className="flex justify-between">
               <span
                 className="category-icon"
-                style={{ background: `${c.color}20`, color: c.color }}
+                style={{
+                  background: `${neutralColor(c.color)}20`,
+                  color: "var(--text, #222222)",
+                }}
               >
                 <Tags size={23} />
               </span>
@@ -102,8 +106,10 @@ export default function CategoriesPage() {
             <Field label="Category color">
               <input
                 type="color"
-                value={edit.color}
-                onChange={(e) => setEdit({ ...edit, color: e.target.value })}
+                value={neutralColor(edit.color)}
+                onChange={(e) =>
+                  setEdit({ ...edit, color: neutralColor(e.target.value) })
+                }
               />
             </Field>
             <Field

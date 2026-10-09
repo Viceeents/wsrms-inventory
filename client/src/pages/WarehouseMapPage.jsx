@@ -4,6 +4,7 @@ import { Grid2X2, RotateCw } from "lucide-react";
 import useAuth from "../hooks/useAuth";
 import useApi from "../hooks/useApi";
 import { parcelService } from "../services/parcelService";
+import { warehouseService } from "../services/warehouseService";
 import {
   PageTitle,
   Card,
@@ -11,6 +12,7 @@ import {
   ErrorMessage,
 } from "../components/common/UI";
 import Button from "../components/common/Button";
+import RouteUnavailable from "../components/warehouse/RouteUnavailable";
 import WarehouseGrid from "../components/warehouse/WarehouseGrid";
 import StorageInfo from "../components/warehouse/StorageInfo";
 import DispatchRouteSummary from "../components/warehouse/DispatchRouteSummary";
@@ -20,24 +22,40 @@ export default function WarehouseMapPage() {
     [params] = useSearchParams(),
     [selected, setSelected] = useState(null),
     [route, setRoute] = useState(null),
+    [routeParcel, setRouteParcel] = useState(null),
+    [routeFailure, setRouteFailure] = useState(null),
     [direction, setDirection] = useState("inbound"),
     [start, setStart] = useState(""),
     [error, setError] = useState(""),
     [chooseStart, setChooseStart] = useState(false);
+  const [rack, setRack] = useState("A");
+  const [routeBusy, setRouteBusy] = useState(false);
   const w = warehouse.data;
   useEffect(() => {
     let current = true;
+    if (!params.get("parcel")) {
+      setRoute(null);
+      setRouteParcel(null);
+      setRouteFailure(null);
+      setError("");
+    }
     if (params.get("parcel"))
-      parcelService
-        .route(params.get("parcel"), start)
-        .then((r) => {
+      Promise.all([
+        parcelService.route(params.get("parcel"), start),
+        parcelService.get(params.get("parcel")),
+      ])
+        .then(([r, p]) => {
           if (current) {
             setRoute(r);
+            setRouteParcel(p);
+            setSelected(r.target);
             setError("");
           }
         })
         .catch((e) => {
           if (current) {
+            setRouteParcel(null);
+            setRouteFailure(e.message);
             setError(e.message);
             setRoute(null);
           }
@@ -47,8 +65,37 @@ export default function WarehouseMapPage() {
     };
   }, [params, start, w?.revision]);
   const storage = w?.locations.filter((l) => l.can_store && l.active) || [];
+  async function showLocationPath(location, rackGroup = null) {
+    setRouteBusy(true);
+    setRoute(null);
+    setRouteFailure(null);
+    setError("");
+    try {
+      const [next, current] = await Promise.all([
+        rackGroup
+          ? warehouseService.rackRoute(rackGroup, start)
+          : warehouseService.route(location.id, start),
+        warehouseService.get(),
+      ]);
+      if (next.revision !== current.revision)
+        throw new Error("Warehouse layout changed. Show the path again.");
+      warehouse.setData(current);
+      setRouteParcel(null);
+      setDirection("inbound");
+      setRoute(next);
+      setSelected(next.target);
+    } catch (e) {
+      setRouteFailure(e.message);
+    } finally {
+      setRouteBusy(false);
+    }
+  }
   return (
     <>
+      <RouteUnavailable
+        message={routeFailure}
+        onClose={() => setRouteFailure(null)}
+      />
       <PageTitle
         title="Warehouse map"
         description="Your layout and inventory in one map. Select any storage cell."
@@ -92,13 +139,48 @@ export default function WarehouseMapPage() {
               Layout revision <strong>{w.revision}</strong>
             </span>
           </div>
+          <Card title="Rack destination">
+            <div className="card-body rack-picker">
+              <div role="group" aria-label="Rack destination">
+                {["A", "B", "C"].map((value) => (
+                  <button
+                    className={`btn ${rack === value ? "btn-primary" : "btn-secondary"}`}
+                    key={value}
+                    aria-pressed={rack === value}
+                    onClick={() => {
+                      setRack(value);
+                      setSelected(null);
+                      setRoute(null);
+                      setRouteParcel(null);
+                    }}
+                  >
+                    Rack {value}
+                  </button>
+                ))}
+              </div>
+              {!selected && (
+                <Button
+                  loading={routeBusy}
+                  onClick={() => showLocationPath(null, rack)}
+                >
+                  Show Best Path
+                </Button>
+              )}
+              <p className="muted">
+                Routes to the nearest reachable location in the selected rack
+                group.
+              </p>
+            </div>
+          </Card>
           <div className="map-layout">
             <Card
-              title={w.name}
+              title={routeParcel ? routeParcel.code : w.name}
               description={
-                chooseStart
-                  ? "Click an active walkable cell to set your start."
-                  : "Warehouse Access Point · Receiving + Dispatch"
+                routeParcel
+                  ? `Location ${routeParcel.location_code}`
+                  : chooseStart
+                    ? "Click an active walkable cell to set your start."
+                    : "Warehouse Access Point · Receiving + Dispatch"
               }
               actions={
                 <Button
@@ -122,10 +204,16 @@ export default function WarehouseMapPage() {
                       cell.active &&
                       cell.availability === "Available"
                     ) {
+                      setRoute(null);
                       setStart(cell.id);
                       setChooseStart(false);
                       setError("");
-                    } else setSelected(cell.id);
+                    } else {
+                      setSelected(cell.id);
+                      setRack(null);
+                      setRoute(null);
+                      setRouteParcel(null);
+                    }
                   }}
                 />
                 <DispatchRouteSummary
@@ -136,7 +224,13 @@ export default function WarehouseMapPage() {
                 {start && (
                   <p className="muted mt-3 text-sm">
                     Start: {start}{" "}
-                    <button className="text-link" onClick={() => setStart("")}>
+                    <button
+                      className="text-link"
+                      onClick={() => {
+                        setRoute(null);
+                        setStart("");
+                      }}
+                    >
                       Reset to Warehouse Access Point
                     </button>
                   </p>
@@ -147,6 +241,12 @@ export default function WarehouseMapPage() {
               {w.locations.some((l) => l.cell_id === selected) ? (
                 <StorageInfo
                   location={w.locations.find((l) => l.cell_id === selected)}
+                  onShowPath={() =>
+                    showLocationPath(
+                      w.locations.find((l) => l.cell_id === selected),
+                    )
+                  }
+                  routeBusy={routeBusy}
                 />
               ) : selected ? (
                 <div className="card-body pt-6">
