@@ -18,6 +18,7 @@ export default function StorageRecommendation({
       {locations.slice(0, 6).map((r, i) => (
         <button
           type="button"
+          aria-pressed={selected === r.id}
           className={`recommendation ${selected === r.id ? "chosen" : ""}`}
           onClick={() => onSelect(r.id)}
           key={r.id}

@@ -1373,20 +1373,21 @@ input[type="color"] {
 }
 .recommendation {
   text-align: left;
-  border: 1px solid #e7e7e7;
-  background: white;
+  border: 1px solid var(--border);
+  background: var(--surface-primary);
   border-radius: 7px;
   padding: 15px;
-  color: var(--theme-text, #8d8d8d);
+  color: var(--text-secondary);
   min-width: 0;
 }
 .recommendation:hover {
-  border-color: #b9b9b9;
+  border-color: var(--accent);
+  background: var(--surface-hover);
 }
 .recommendation.chosen {
-  border-color: #a5a5a5;
-  background: var(--theme-surface, #f7f7f7);
-  box-shadow: 0 0 0 1px #a5a5a5;
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
 }
 .recommendation-top {
   display: flex;
@@ -1396,7 +1397,7 @@ input[type="color"] {
 }
 .recommendation-top strong {
   font-size: 0.9285714285714286rem;
-  color: var(--theme-text, #727272);
+  color: var(--text-primary);
 }
 .recommendation-tag {
   font-size: 0.5rem;
@@ -1404,9 +1405,9 @@ input[type="color"] {
   gap: 3px;
   align-items: center;
   padding: 3px 5px;
-  background: var(--theme-surface, #ececec);
+  background: var(--accent-soft);
   border-radius: 3px;
-  color: var(--theme-text, #9b9b9b);
+  color: var(--accent-text);
   white-space: nowrap;
 }
 .radio-dot {
@@ -1416,25 +1417,25 @@ input[type="color"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid #dfdfdf;
+  border: 1px solid var(--border-strong);
   border-radius: 50%;
   flex-shrink: 0;
 }
 .chosen .radio-dot {
-  background: #9c9c9c;
-  color: white;
-  border-color: #9c9c9c;
+  background: var(--button-primary-bg);
+  color: var(--button-primary-text);
+  border-color: var(--button-primary-bg);
 }
 .recommendation > p {
   font-size: 0.6428571428571429rem;
   margin: 0 0 14px;
-  color: var(--theme-text, #a2a2a2);
+  color: var(--text-secondary);
 }
 .recommendation-bottom {
   display: flex;
   justify-content: space-between;
   font-size: 0.5714285714285714rem;
-  color: var(--theme-text, #9b9b9b);
+  color: var(--text-secondary);
   margin-top: 11px;
   gap: 8px;
 }
