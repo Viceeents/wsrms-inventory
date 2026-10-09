@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { MessageCircle, X } from "lucide-react";
+import MemberAvatar from "../common/MemberAvatar";
 import { api } from "../../services/api";
 import MessagingPanel from "./MessagingPanel";
 export default function ChatLauncher() {
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState({ total: 0, channels: {} });
+  const [dismissed, setDismissed] = useState({});
   const refresh = useCallback(
     async () => setUnread(await api("/messages/unread")),
     [],
@@ -21,7 +23,7 @@ export default function ChatLauncher() {
         .catch(() => {});
     };
     check();
-    const timer = setInterval(check, open ? 30000 : 60000);
+    const timer = setInterval(check, open ? 30000 : 15000);
     document.addEventListener("visibilitychange", check);
     return () => {
       active = false;
@@ -32,6 +34,41 @@ export default function ChatLauncher() {
   }, [open]);
   return (
     <>
+      {!open && (
+        <div className="chat-heads" aria-label="Unread team conversations">
+          {(unread.heads || [])
+            .filter((head) => dismissed[head.id] !== head.latest_id)
+            .map((head) => (
+              <div className="chat-head-wrap" key={head.id}>
+                <button
+                  type="button"
+                  className="chat-head"
+                  aria-label={`Open team chat, ${head.unread} unread from ${head.name}`}
+                  title={`${head.name} · Main Warehouse Team`}
+                  onClick={() => setOpen(true)}
+                >
+                  <MemberAvatar name={head.name} image={head.profile_image} />
+                  <span className="message-badge" aria-hidden="true">
+                    {head.unread > 99 ? "99+" : head.unread}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="chat-head-dismiss"
+                  aria-label={`Dismiss chat head for ${head.name}`}
+                  onClick={() =>
+                    setDismissed((previous) => ({
+                      ...previous,
+                      [head.id]: head.latest_id,
+                    }))
+                  }
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+        </div>
+      )}
       {!open && (
         <button
           className="chat-launcher"

@@ -1152,6 +1152,72 @@ test("Messaging persists safely, enforces permissions and tracks reads per user"
   assert.ok(updates.every((m) => !m.message.includes("postgres://")));
 });
 
+test("Typing activity is authenticated, expires, excludes self and clears on send", async () => {
+  await request(app).get("/api/messages/team/activity").expect(401);
+  await request(app)
+    .post("/api/messages/team/typing")
+    .send({ typing: true })
+    .expect(401);
+  await staff
+    .post("/api/messages/team/typing")
+    .send({ typing: "yes" })
+    .expect(400);
+  const current = (await staff.get("/api/auth/me")).body;
+  await staff
+    .post("/api/messages/team/typing")
+    .send({ typing: true })
+    .expect(200);
+  assert.ok(
+    (await admin.get("/api/messages/team/activity")).body.typing.some(
+      (u) => u.id === current.id,
+    ),
+  );
+  assert.ok(
+    !(await staff.get("/api/messages/team/activity")).body.typing.some(
+      (u) => u.id === current.id,
+    ),
+  );
+  await run(
+    "UPDATE message_typing SET expires_at=CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE user_id=?",
+    current.id,
+  );
+  assert.ok(
+    !(await admin.get("/api/messages/team/activity")).body.typing.some(
+      (u) => u.id === current.id,
+    ),
+  );
+  await staff
+    .post("/api/messages/team/typing")
+    .send({ typing: true })
+    .expect(200);
+  const message = (
+    await staff
+      .post("/api/messages/team")
+      .send({ message: "Typing has finished." })
+      .expect(201)
+  ).body;
+  assert.ok(
+    !(await admin.get("/api/messages/team/activity")).body.typing.some(
+      (u) => u.id === current.id,
+    ),
+  );
+  const heads = (await admin.get("/api/messages/unread")).body.heads;
+  assert.ok(
+    heads.some(
+      (u) => u.id === current.id && u.latest_id === message.id && u.unread > 0,
+    ),
+  );
+  await admin
+    .post("/api/messages/team/read")
+    .send({ through: message.id })
+    .expect(200);
+  assert.equal((await admin.get("/api/messages/unread")).body.heads.length, 0);
+  await staff
+    .post("/api/messages/team/typing")
+    .send({ typing: false })
+    .expect(200);
+});
+
 test("Message history is bounded and older pages have no duplicates", async () => {
   for (let i = 0; i < 55; i++)
     await run(

@@ -6,6 +6,7 @@ export default function Modal({
   children,
   wide = false,
   className = "",
+  headerActions,
 }) {
   const ref = useRef(null),
     closeRef = useRef(onClose);
@@ -30,6 +31,7 @@ export default function Modal({
     >
       <div className="modal-head">
         <h2>{title}</h2>
+        {headerActions}
         <button
           className="icon-button"
           aria-label="Close dialog"

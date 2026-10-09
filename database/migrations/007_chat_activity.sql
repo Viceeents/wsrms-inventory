@@ -1,0 +1,4 @@
+CREATE TABLE IF NOT EXISTS message_typing (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id),
+  expires_at TIMESTAMPTZ NOT NULL
+);

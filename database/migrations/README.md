@@ -13,3 +13,5 @@ Take a private backup with `npm run db:backup` before upgrading another existing
 `005_deleted_users.sql` adds permanent user soft deletion. Deleted accounts retain their identity for historical references, are excluded from current-user lists, and cannot be reactivated through user updates. The migration runs through the existing initialization lock.
 
 `006_team_messaging.sql` adds authenticated team messages, announcements and system updates with user foreign keys, indexed channel history, and per-user read cursors. Announcements archive without erasing their records. The existing migration transaction applies it once; all messaging data is included in database backups.
+
+`007_chat_activity.sql` adds short-lived typing activity shared across server instances. Only user identity and expiration are stored; message drafts stay in the browser. Expired, inactive and deleted users are excluded from typing indicators.

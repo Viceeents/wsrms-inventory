@@ -52,8 +52,14 @@ test("Storix phone navigation, chat, rack routes and both themes", async ({
   await gridRack.click();
   await expect(gridRack).toHaveAttribute("aria-pressed", "true");
   await expect(gridRack.locator("b")).toHaveText(rackCode);
-  await expect(page.locator(".rack-info").getByRole("heading", { name: `Rack ${rackCode}`, exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Show Best Path", exact: true }).click();
+  await expect(
+    page
+      .locator(".rack-info")
+      .getByRole("heading", { name: `Rack ${rackCode}`, exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Show Best Path", exact: true })
+    .click();
   await expect(page.locator(".route-overlay polyline")).toHaveCount(2);
   await page.screenshot({
     path: "test-results/storix-mobile-light.png",
@@ -157,6 +163,37 @@ test("Staff messages and administrator announcements persist across accounts", a
     page
       .getByRole("log")
       .getByText("Staff unloading completed.", { exact: true }),
+  ).toBeVisible();
+  await staffPage
+    .getByLabel("Team message", { exact: true })
+    .fill("Rack B is ready");
+  await expect(
+    page.getByRole("status").filter({ hasText: "is typing" }),
+  ).toBeVisible({ timeout: 8000 });
+  await page.screenshot({ path: "test-results/storix-typing-desktop.png" });
+  await staffPage.getByLabel("Team message", { exact: true }).fill("");
+  await expect(
+    page.getByRole("status").filter({ hasText: "is typing" }),
+  ).toHaveCount(0, { timeout: 8000 });
+  await page.getByRole("button", { name: "Minimize messages" }).click();
+  await staffPage
+    .getByLabel("Team message", { exact: true })
+    .fill("Chat head verification");
+  await staffPage.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    staffPage
+      .getByRole("log")
+      .getByText("Chat head verification", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  const head = page
+    .getByRole("button", { name: /Open team chat, .* unread from/ })
+    .first();
+  await expect(head).toBeVisible();
+  await page.screenshot({ path: "test-results/storix-chat-heads.png" });
+  await head.click();
+  await expect(
+    page.getByRole("log").getByText("Chat head verification", { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: /^Announcements/ }).click();
   await page.getByLabel("Announcement title").fill("Warehouse maintenance");

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, Archive, RefreshCw } from "lucide-react";
+import { Send, Archive, RefreshCw, Minus } from "lucide-react";
+import MemberAvatar from "../common/MemberAvatar";
 import Modal from "../common/Modal";
 import Button from "../common/Button";
 import { Field, ErrorMessage } from "../common/UI";
@@ -30,6 +31,76 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
   const [archive, setArchive] = useState(null);
   const list = useRef(null);
   const newest = useRef(null);
+  const refreshHistory = useRef(null);
+  const [typing, setTyping] = useState([]);
+  const lastTyping = useRef(0);
+  const idleTimer = useRef(null);
+  function stopTyping() {
+    clearTimeout(idleTimer.current);
+    if (!lastTyping.current) return;
+    lastTyping.current = 0;
+    api("/messages/team/typing", {
+      method: "POST",
+      body: { typing: false },
+    }).catch(() => {});
+  }
+  function changeDraft(value) {
+    setDraft(value);
+    if (channel !== "team") return;
+    clearTimeout(idleTimer.current);
+    if (!value.trim()) {
+      stopTyping();
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTyping.current >= 4000) {
+      lastTyping.current = now;
+      api("/messages/team/typing", {
+        method: "POST",
+        body: { typing: true },
+      }).catch(() => {});
+    }
+    idleTimer.current = setTimeout(stopTyping, 4000);
+  }
+  useEffect(() => {
+    setTyping([]);
+    if (channel !== "team") return;
+    let active = true,
+      pending = false;
+    const controller = new AbortController();
+    const check = async () => {
+      if (document.hidden) {
+        stopTyping();
+        return;
+      }
+      if (pending) return;
+      pending = true;
+      try {
+        const activity = await api("/messages/team/activity", {
+          signal: controller.signal,
+        });
+        if (active) {
+          setTyping(activity.typing);
+          if (activity.latestId > (newest.current || 0))
+            refreshHistory.current?.();
+        }
+      } catch {
+        if (active) setTyping([]);
+      } finally {
+        pending = false;
+      }
+    };
+    check();
+    const timer = setInterval(check, 2500);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      active = false;
+      controller.abort();
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", check);
+      stopTyping();
+    };
+  }, [channel]);
   useEffect(() => {
     let active = true,
       fetching = false;
@@ -62,6 +133,7 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
               ...next.items,
             ],
             hasMore: previous.hasMore,
+            members: { ...previous.members, ...next.members },
           };
         });
         setError("");
@@ -86,12 +158,14 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
         if (active) setLoading(false);
       }
     };
+    refreshHistory.current = load;
     load();
     const timer = setInterval(load, 30000);
     document.addEventListener("visibilitychange", load);
     return () => {
       active = false;
       controller.abort();
+      refreshHistory.current = null;
       clearInterval(timer);
       document.removeEventListener("visibilitychange", load);
     };
@@ -106,6 +180,7 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
       );
       setHistory((previous) => ({
         items: [...next.items, ...previous.items],
+        members: { ...previous.members, ...next.members },
         hasMore: next.hasMore,
       }));
       requestAnimationFrame(() => {
@@ -157,6 +232,17 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
   return (
     <Modal
       title="Storix Messages"
+      headerActions={
+        <button
+          type="button"
+          className="icon-button message-minimize"
+          aria-label="Minimize messages"
+          disabled={busy}
+          onClick={onClose}
+        >
+          <Minus size={19} />
+        </button>
+      }
       className="messaging-modal"
       onClose={() => {
         if (!busy) onClose();
@@ -230,6 +316,10 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
             className={`message-item ${item.sender_user_id === user.id ? "own-message" : ""} ${item.unread ? "unread-message" : ""}`}
           >
             <div className="message-meta">
+              <MemberAvatar
+                name={item.sender_name}
+                image={history.members?.[item.sender_user_id]}
+              />
               <strong>{item.sender_name}</strong>
               {item.priority !== "Normal" && (
                 <span
@@ -287,6 +377,26 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
           </article>
         ))}
       </div>
+      {channel === "team" && (
+        <div className="typing-indicator" role="status" aria-live="polite">
+          {typing.length > 0 && (
+            <>
+              <span className="typing-dots" aria-hidden="true">
+                <i />
+                <i />
+                <i />
+              </span>
+              <span>
+                {typing.length === 1
+                  ? `${typing[0].name} is typing…`
+                  : typing.length === 2
+                    ? `${typing[0].name} and ${typing[1].name} are typing…`
+                    : `${typing[0].name} and ${typing.length - 1} others are typing…`}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {canSend && (
         <form className="message-composer" onSubmit={send}>
           {channel === "announcements" && (
@@ -320,7 +430,8 @@ export default function MessagingPanel({ unread, onRead, onClose }) {
               rows={2}
               placeholder="Type a message…"
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => changeDraft(e.target.value)}
+              onBlur={stopTyping}
               required
               maxLength={2000}
               disabled={busy}

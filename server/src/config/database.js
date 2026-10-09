@@ -84,10 +84,11 @@ export async function initializeDatabase() {
             "004_backup_neutral",
             "005_deleted_users",
             "006_team_messaging",
+            "007_chat_activity",
           ],
         ],
       );
-      if (rows[0].applied === 5) return;
+      if (rows[0].applied === 6) return;
     } catch (error) {
       if (error.code !== "42P01") throw error;
     }
@@ -184,6 +185,24 @@ export async function initializeDatabase() {
         await run(
           "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
           "006_team_messaging",
+          new Date().toISOString(),
+        );
+      }
+      if (
+        !(await get(
+          "SELECT version FROM schema_migrations WHERE version=?",
+          "007_chat_activity",
+        ))
+      ) {
+        await query(
+          readFileSync(
+            path.join(root, "database/migrations/007_chat_activity.sql"),
+            "utf8",
+          ),
+        );
+        await run(
+          "INSERT INTO schema_migrations(version,applied_at) VALUES(?,?)",
+          "007_chat_activity",
           new Date().toISOString(),
         );
       }
