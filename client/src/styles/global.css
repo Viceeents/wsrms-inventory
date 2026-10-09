@@ -1279,7 +1279,7 @@ input[type="color"] {
   display: flex;
   gap: 15px;
   align-items: center;
-  background: white;
+  background: var(--surface-primary);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 19px 25px;
@@ -1314,9 +1314,9 @@ input[type="color"] {
   background: var(--theme-surface, #f2f2f2);
 }
 .steps-bar .complete i {
-  background: #929292;
-  border-color: #929292;
-  color: white;
+  background: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
 }
 .steps-bar b {
   flex: 1;
@@ -1699,26 +1699,32 @@ input[type="color"] {
   flex-wrap: wrap;
 }
 .editor-tool {
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   display: flex;
   gap: 6px;
   align-items: center;
   padding: 8px 9px;
-  background: white;
+  background: var(--surface-secondary);
   border-radius: 5px;
-  color: var(--theme-text, #989898);
+  color: var(--text-primary);
+  min-height: 44px;
   font-size: 0.7142857142857143rem;
   text-transform: capitalize;
 }
 .editor-tool.active {
-  background: var(--theme-surface, #f3f3f3);
-  border-color: var(--theme-border, #d9d9d9);
-  color: var(--theme-text, #878787);
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+.editor-tool:hover:not(.active) {
+  background: var(--surface-hover);
+  border-color: var(--accent);
 }
 .tool-color {
   width: 12px;
   height: 12px;
   border-radius: 3px;
+  border: 1px solid var(--border-strong);
 }
 .editor-note {
   display: flex;
@@ -1866,7 +1872,7 @@ input[type="color"] {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
-  background: #fcfcfc;
+  background: var(--background);
 }
 .login-story {
   background: #343434;
@@ -1953,8 +1959,8 @@ input[type="color"] {
   width: 58px;
   height: 58px;
   border-radius: 14px;
-  background: #f1f1f1;
-  color: #929292;
+  background: var(--accent-soft);
+  color: var(--accent-text);
   align-items: center;
   justify-content: center;
   margin-bottom: 30px;
@@ -2595,7 +2601,7 @@ td small,
 }
 .route-direction button {
   border: 1px solid var(--accent);
-  background: white;
+  background: var(--surface-primary);
   color: var(--accent-text, var(--accent));
   border-radius: 5px;
   padding: 8px 12px;

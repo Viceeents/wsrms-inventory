@@ -23,6 +23,7 @@ export default function GridEditorToolbar({
         ].map((type) => (
           <button
             type="button"
+            aria-pressed={tool === type}
             key={type}
             onClick={() => onTool(type)}
             className={`editor-tool ${tool === type ? "active" : ""}`}
