@@ -91,3 +91,21 @@ Drafts are local to an account and browser, expire after seven days, and need br
 On this workstation, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-cloud-backup-task.ps1` to install the **WSRMS Cloud Database Backup** scheduled task. It runs once daily at **2:00 AM Philippine time (UTC+08:00)**, uses the private `.local/cloud-backup.env`, and starts without a visible window. Installing it replaces the previous hourly/sign-in triggers. To choose another time, pass `-NightlyTime "23:00"` (24-hour Philippine time). The task requests wake from sleep when supported. Missed sessions are skipped rather than copied during daytime or at sign-in. Check its result with `Get-ScheduledTaskInfo -TaskName 'WSRMS Cloud Database Backup'`. Standard output and errors are saved in `.local/cloud-backup.log` and `.local/cloud-backup.error.log`; completed synchronization is also recorded in the primary database monitoring ledger.
 
 This task runs while its Windows user is signed in and the workstation is powered on and connected. The backup is a nightly recovery copy, so changes after the last session remain pending until the next night. Keep `BACKUP_INTERVAL_HOURS=0` in both the application and private cloud environment, and stop any interval backup worker. Set `BACKUP_WARNING_HOURS=30` on the backup host and hosted application so a healthy daily copy is not flagged after six hours. The task runner enforces these settings for its own process. Use the persistent VPS service described above for backups that continue while the workstation is off. Do not run another worker against the same backup target at the same time.
+
+
+### GitHub-hosted nightly Neon backup
+
+The [Nightly Neon backup workflow](../../.github/workflows/nightly-backup.yml) runs on GitHub's hosted runner at `0 18 * * *` UTC: **02:00 Asia/Manila** the following day. GitHub may delay scheduled jobs; this is a target time. It can also be started manually from Actions. It requires no running warehouse computer or Vercel cron function.
+
+In repository **Settings ? Secrets and variables ? Actions**, create these repository secrets:
+
+| Secret | Value |
+| --- | --- |
+| `WSRMS_PRIMARY_DATABASE_URL` | Direct (non-pooler) Neon connection string for the deployed primary database |
+| `WSRMS_BACKUP_DATABASE_URL` | Direct (non-pooler) Neon connection string for the dedicated backup database |
+
+Use the Neon connection dialog to select the correct project/branch/database and turn connection pooling off. Include SSL settings from the supplied connection string. The destination must be dedicated to recovery: the job replaces its `public` application schema and clears copied login sessions. Never use the primary connection for both secrets. The primary must already have the application's schema initialized; this workflow does not run migrations against production.
+
+Open **Actions ? Nightly Neon backup ? Run workflow** to verify the first copy. Confirm the job succeeds and the deployed Database health page shows a completed synchronized copy. Set `BACKUP_WARNING_HOURS=30` and `BACKUP_INTERVAL_HOURS=0` in the Vercel production environment, then redeploy so monitoring uses the nightly interval. Once the cloud copy succeeds, disable the Windows task with `Disable-ScheduledTask -TaskName 'WSRMS Cloud Database Backup'` and stop any interval worker to avoid competing copies.
+
+The existing backup service validates the dump, restores transactionally, verifies application tables, and records monitoring metadata in the primary. Dumps and manifests are temporary on the GitHub runner; this workflow does not publish database contents as Actions artifacts or retain independent archive history. Repository concurrency prevents overlapping GitHub copies but cannot coordinate an external Windows/VPS worker. For public repositories, GitHub may disable schedules after 60 days without repository activity; check that Actions and the scheduled workflow remain enabled.

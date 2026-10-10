@@ -1,0 +1,75 @@
+name: Nightly Neon backup
+
+on:
+  schedule:
+    # 18:00 UTC is 02:00 the following day in Asia/Manila.
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-neon-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.WSRMS_PRIMARY_DATABASE_URL }}
+      BACKUP_DATABASE_URL: ${{ secrets.WSRMS_BACKUP_DATABASE_URL }}
+      BACKUP_DIRECTORY: ${{ runner.temp }}/wsrms-backups
+      BACKUP_INTERVAL_HOURS: '0'
+      BACKUP_WARNING_HOURS: '30'
+      DB_SCHEMA: public
+      SEED_DEMO: 'false'
+      PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
+      PG_RESTORE_PATH: /usr/lib/postgresql/18/bin/pg_restore
+      PSQL_PATH: /usr/lib/postgresql/18/bin/psql
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Check private connection configuration
+        run: |
+          node --input-type=module <<'JS'
+          for (const key of ['DATABASE_URL', 'BACKUP_DATABASE_URL']) {
+            let url;
+            try { url = new URL(process.env[key]); } catch {
+              throw new Error(`Configure the repository secret for ${key}.`);
+            }
+            if (!['postgres:', 'postgresql:'].includes(url.protocol) ||
+                !url.hostname.endsWith('.neon.tech') ||
+                url.hostname.includes('-pooler')) {
+              throw new Error(`${key} must be a direct Neon PostgreSQL connection.`);
+            }
+          }
+          const source = new URL(process.env.DATABASE_URL);
+          const target = new URL(process.env.BACKUP_DATABASE_URL);
+          if (source.hostname === target.hostname && source.port === target.port &&
+              source.pathname === target.pathname) {
+            throw new Error('The backup must be a separate database from the primary.');
+          }
+          JS
+      - name: Install PostgreSQL 18 tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          "$PG_DUMP_PATH" --version
+          "$PG_RESTORE_PATH" --version
+      - run: npm ci --omit=dev
+      - name: Copy primary database to backup database
+        run: npm run db:backup
+      - name: Report result
+        if: always()
+        env:
+          BACKUP_JOB_STATUS: ${{ job.status }}
+        run: |
+          printf 'Nightly Neon backup: %s\nTarget time: 02:00 Asia/Manila.\nSee the job logs and application Database health for results.\n' "$BACKUP_JOB_STATUS" >> "$GITHUB_STEP_SUMMARY"
