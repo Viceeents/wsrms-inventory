@@ -3,7 +3,7 @@ name: Nightly Neon backup
 on:
   schedule:
     # 18:00 UTC is 02:00 the following day in Asia/Manila.
-    - cron: '0 18 * * *'
+    - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -21,10 +21,10 @@ jobs:
       DATABASE_URL: ${{ secrets.WSRMS_PRIMARY_DATABASE_URL }}
       BACKUP_DATABASE_URL: ${{ secrets.WSRMS_BACKUP_DATABASE_URL }}
       BACKUP_DIRECTORY: ${{ runner.temp }}/wsrms-backups
-      BACKUP_INTERVAL_HOURS: '0'
-      BACKUP_WARNING_HOURS: '30'
+      BACKUP_INTERVAL_HOURS: "0"
+      BACKUP_WARNING_HOURS: "30"
       DB_SCHEMA: public
-      SEED_DEMO: 'false'
+      SEED_DEMO: "false"
       PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
       PG_RESTORE_PATH: /usr/lib/postgresql/18/bin/pg_restore
       PSQL_PATH: /usr/lib/postgresql/18/bin/psql
