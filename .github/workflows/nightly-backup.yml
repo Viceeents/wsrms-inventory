@@ -20,7 +20,6 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.WSRMS_PRIMARY_DATABASE_URL }}
       BACKUP_DATABASE_URL: ${{ secrets.WSRMS_BACKUP_DATABASE_URL }}
-      BACKUP_DIRECTORY: ${{ runner.temp }}/wsrms-backups
       BACKUP_INTERVAL_HOURS: "0"
       BACKUP_WARNING_HOURS: "30"
       DB_SCHEMA: public
@@ -66,6 +65,8 @@ jobs:
           "$PG_RESTORE_PATH" --version
       - run: npm ci --omit=dev
       - name: Copy primary database to backup database
+        env:
+          BACKUP_DIRECTORY: ${{ runner.temp }}/wsrms-backups
         run: npm run db:backup
       - name: Report result
         if: always()
