@@ -1,115 +1,163 @@
-# Warehouse Storage Records Management System
+# Storix ? Warehouse Storage Records Management System
 
-A working staff-first warehouse application built with **JavaScript, React, Node.js, Express, PostgreSQL, Tailwind CSS, Chart.js, and npm**. The interface is based on the supplied written requirements; the Figma Make link was inaccessible and has not been reproduced pixel-for-pixel.
+Storix manages parcel receiving, storage, retrieval, verified dispatch, and operational records. It uses React, Vite, Tailwind CSS, Express, Node.js 24, and PostgreSQL 18. Production runs on Vercel with Neon PostgreSQL; GitHub Actions copies data to a separate Neon backup nightly.
 
-## Run locally
+**Application:** [wsrms-inventory.vercel.app](https://wsrms-inventory.vercel.app) ? **Source:** [Viceeents/wsrms-inventory](https://github.com/Viceeents/wsrms-inventory)
 
-Requirements: Node.js **24+**, npm, PostgreSQL **18** (the version tested; the schema uses standard PostgreSQL features). Open this `wsrms` folder in Visual Studio Code.
+This guide describes the deployed `wsrms` repository. The sibling `wsrms-local` checkout is a separate repository.
 
-Your local `.env` already points to **`wsrms_inventory_db`**. Database credentials are private and excluded from Git.
+## Documentation
 
-For Neon on Vercel, `DATABASE_URL` may use the pooled (`-pooler`) endpoint. Normal public-schema requests omit the unsupported `search_path` startup option. Initialization and backups use `DATABASE_URL_UNPOOLED` when provided; otherwise the app derives the direct endpoint from a Neon pooled hostname. Custom schemas use a direct connection. Set connection variables for Vercel's Production environment, then redeploy. Keep local PostgreSQL configuration in `.env` separate from the cloud values in the parent `.env.local`.
+| Guide                                                        | Coverage                                                                          |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| [Engineering handbook](docs/engineering/README.md)           | Requirements, architecture, database, security, testing, delivery and maintenance |
+| [Complete file reference](docs/engineering/files.md)         | Individual source/configuration files and responsibilities                        |
+| [API reference](docs/api/README.md)                          | Registered endpoints, permissions, payloads and errors                            |
+| [Postman collection](docs/api/WSRMS.postman_collection.json) | Importable requests; use the API reference for current contracts                  |
+| [Architecture diagrams](docs/diagrams/architecture.md)       | Architecture and operation diagrams                                               |
+| [Migrations](database/migrations/README.md)                  | Ordered schema evolution                                                          |
+| [Vercel setup](docs/operations/vercel.md)                    | Production hosting configuration                                                  |
+| [Backup runbook](docs/operations/recovery.md)                | Nightly cloud copies and recovery                                                 |
+
+## Features and roles
+
+Features include measured receiving, recommendations, derived inventory, rack/floor routes, transfers, QR/barcode labels, camera/manual scanning, dispatch verification, audit history, CSV reports, versioned layout/settings, profile review, account presence, team messaging, notifications, browser drafts, and Light/Dark appearance.
+
+| Capability                                                   | Staff | Manager | Administrator |
+| ------------------------------------------------------------ | ----- | ------- | ------------- |
+| Receiving, inventory, routing, transfer, retrieval, dispatch | Yes   | Yes     | Yes           |
+| Own profile, preferences, notifications and team chat        | Yes   | Yes     | Yes           |
+| Reports, categories, layout, settings, parcel corrections    | No    | Yes     | Yes           |
+| Review profile pictures                                      | No    | Yes     | Yes           |
+| Manage accounts; publish/archive announcements               | No    | No      | Yes           |
+| Database monitoring and manual recovery API                  | No    | No      | Yes           |
+
+The backend enforces permissions. No manager is seeded; administrators assign the role. Vercel disables local manual backup/restore execution, which requires persistent storage and PostgreSQL tools. Cloud-job monitoring records remain visible.
+
+## Local setup
+
+Install Node.js **24**, npm and PostgreSQL **18**. Use a development database for development and tests.
 
 ```powershell
-cd C:\warehousemanagement\wsrms
-npm.cmd install
-npm.cmd run db:setup
-npm.cmd run dev
+git clone https://github.com/Viceeents/wsrms-inventory.git
+cd wsrms-inventory
+npm.cmd ci
+Copy-Item .env.example .env
 ```
 
-Open **http://localhost:5173**. The Express API runs at **http://127.0.0.1:3001**. `npm.cmd` avoids Windows PowerShell's script execution-policy restriction; `npm` works normally in Command Prompt, Linux, and macOS.
-
-For another machine, copy `.env.example` to `.env`, create the database in pgAdmin or psql, and set the connection URL:
+Create the database and edit `.env`:
 
 ```sql
 CREATE DATABASE wsrms_inventory_db;
 ```
 
 ```dotenv
-DATABASE_URL=postgresql://postgres:YOUR_URL_ENCODED_PASSWORD@localhost:5432/wsrms_inventory_db
+DATABASE_URL=postgresql://postgres:URL_ENCODED_PASSWORD@localhost:5432/wsrms_inventory_db
+HOST=127.0.0.1
+PORT=3001
+APP_ORIGIN=http://localhost:5173
+NODE_ENV=development
+SEED_DEMO=true
+BACKUP_INTERVAL_HOURS=0
 ```
 
-URL-encode password characters such as `@`, `#`, and `%`. The app creates its tables and initial data automatically when starting, or explicitly with `npm run db:setup`. It does not reset an existing warehouse. An inaccessible database stops startup with a configuration message.
+```powershell
+npm.cmd run db:setup
+npm.cmd run dev
+```
 
-Optional Docker alternative: set `POSTGRES_PASSWORD` in `.env`, run `docker compose up -d`, and use `postgresql://wsrms:<encoded-password>@localhost:5433/wsrms_inventory_db`. Port 5433 avoids conflicting with an existing local PostgreSQL service.
+Open **http://localhost:5173**. API: **http://127.0.0.1:3001/api**. Vite proxies API calls. Windows PowerShell can use `npm.cmd` to avoid script execution-policy restrictions; other shells can use `npm`. URL-encode password characters. Docker users can use `docker-compose.yml` with private primary/backup passwords and the declared ports.
 
-## Starter accounts
+Startup applies tracked migrations and initializes missing data without resetting existing records. `SEED_DEMO=false` suppresses demo parcels on a fresh database.
 
-| Role            | Email               | Initial password |
-| --------------- | ------------------- | ---------------- |
-| Administrator   | `admin@wsrms.local` | `Warehouse@2026` |
-| Warehouse staff | `staff@wsrms.local` | `Staff@2026`     |
+| Development role | Email               | Default initial password |
+| ---------------- | ------------------- | ------------------------ |
+| Administrator    | `admin@wsrms.local` | `Warehouse@2026`         |
+| Staff            | `staff@wsrms.local` | `Staff@2026`             |
 
-The passwords can be overridden by `ADMIN_PASSWORD` and `STAFF_PASSWORD` **before the first initialization**. Once users exist, change passwords through Team members. Starter accounts are intended for local development; change their passwords before shared use.
+`ADMIN_PASSWORD`/`STAFF_PASSWORD` override first-time seed passwords, not existing credentials. Change defaults before shared use. Keep credentials, private environment files, dumps and logs out of Git.
 
-`SEED_DEMO=true` adds 36 sample parcel records on the first initialization. Set it to `false` before initializing a fresh database to create only accounts, categories, and the warehouse layout. Existing records are preserved regardless of this setting.
+## Architecture
 
-## What works
+```mermaid
+flowchart LR
+  Browser[React web application] -->|Same-origin JSON and session cookie| API[Express API]
+  Vercel[Vercel function adapter] --> API
+  API --> Primary[(Primary Neon PostgreSQL)]
+  Runner[GitHub Actions nightly job] -->|Direct pg_dump| Primary
+  Runner -->|Transactional restore| Backup[(Separate Neon backup)]
+  Runner -->|Monitoring metadata| Primary
+```
 
-- Staff/admin authentication with hashed passwords, eight-hour HttpOnly sessions, login rate limiting, active-account checks, and server-enforced roles.
-- Parcel check-in, unique internal/user/transaction codes, optional unique external tracking numbers, filtering, details, and inventory monitoring for racks and floor storage.
-- Each cell carries layout, storage, and movement information. Occupancy, parcel counts, and stored IDs come from inventory records. Empty, occupied, full, and unavailable locations have distinct indicators.
-- Storage recommendations enforce **category, size, parcel capacity, size-unit capacity, total weight, availability, and retrieval/return access**. Racks and floor locations use the same scoring rules.
-- The default **Warehouse Access Point** is one door with **Receiving + Dispatch** usage. Administrators can configure receiving, dispatch, or both on each access point.
-- Dijkstra independently calculates the route to the parcel and the return to an access point. The dispatch view displays both step counts, their total, and selectable route overlays. Routes use current active/walkable flags, movement costs, and allowed directions. Racks, walls, and blocked cells cannot be crossed; floor storage may be walkable or served from an adjacent aisle. Steps are grid movements, not meters.
-- Storage transfers between compatible reachable locations, with changes recorded in transaction history.
-- Administrator parcel corrections require a reason, retain original/new values in the audit log, and revalidate storage limits.
-- Retrieval followed by **server-verified dispatch**. A wrong code or a parcel not marked Retrieved cannot be dispatched. Correct dispatch frees capacity, changes status, and records verification in a single database transaction.
-- QR codes and CODE128 barcodes encode the internal parcel code. Print preview supports multiple labels; browser print/PDF hides navigation.
-- Camera scanning via `html5-qrcode`, USB scanner keyboard input, and manual code entry. Camera requires **localhost or HTTPS** and browser permission; physical camera/scanner/thermal-printer compatibility needs testing on your hardware.
-- Editable 10 × 14 layout/inventory grid with rack and floor capacities, weight limits, category restrictions, active status, reservations, and blocked cells. Occupied locations must remain reachable in both directions. Relocate active parcels before disabling or blocking their cell. Unreachable empty locations produce warnings and are excluded from recommendations. Historical location configurations remain attached for traceability. Layout revision checks prevent overwriting someone else's edit.
-- Persistent in-app notifications for capacity, check-in, dispatch, failed verification, unavailable storage, blocked routes, and layout changes. Administrators choose enabled events and the near-full threshold. Read state is per account.
-- Account appearance settings persist neutral Light or Dark mode and font size. Administrators also control new floor-storage assignments and parcel classification thresholds.
-- Admin team management, category management, operational charts, CSV exports, and detailed audit records.
-- Responsive layout for desktop and mobile. Dashboard, inventory, warehouse map, parcels, transactions, and reports refresh every **30 seconds**; writes are immediately persisted. This uses polling, not WebSockets.
+This is a modular layered application, not independently deployed microservices. Routes define HTTP/permissions; controllers adapt requests; services enforce business operations; models query data; algorithms compute routing and compatibility. Recovery/messaging have some direct database handlers in route modules.
 
-## Storage rules
+```text
+api/                     Vercel API entry
+client/                  HTML, Vite config and public assets
+  src/components/        Common UI, layout/chat, parcel, warehouse, QR and charts
+  src/pages/             Operator and admin/manager screens
+  src/hooks/             Fetch/polling, drafts, auth, scanner and grid
+  src/context/           Authentication and appearance providers
+  src/routes/            Browser routes and guards
+  src/services/          HTTP adapters
+  src/utils/             Formatting, validation, storage and colors
+server/src/
+  routes/                Endpoints, validation and role gates
+  controllers/           HTTP adapters
+  services/              Business operations, audit, reporting and recovery
+  models/                Queries and projections
+  algorithms/            Graph, Dijkstra, dimensions and scoring
+  config/                Environment, connections, transactions and migrations
+  middleware/            Sessions, roles, validation and errors
+  utils/                 Passwords, images, identifiers and availability
+database/                Base schema, ordered migrations and seeds
+scripts/                 Setup, tests, backup and Postman generation
+tests/                   Algorithms, database integration and browser scenarios
+docs/                    Engineering, API, design and operations
+.github/workflows/       CI and nightly cloud copy
+```
 
-`capacity` limits the quantity of items stored; `unit_capacity` separately limits space consumed. Small parcels use 1 size unit per item, Medium 2, and Large 4. `occupancy` sums item quantities; `parcel_count` counts parcel records. Weight is kilograms **per item**. Size limits and optional category restrictions apply to every storage type. Reserved, Blocked, inactive, and unreachable locations cannot receive new parcels. Retrieved parcels continue occupying their assigned location until verified dispatch.
+See the [file reference](docs/engineering/files.md) for each file.
 
-Storage is filtered by actual dimensions, category, size, quantity, total weight, capacity, and two-way accessibility. Utilization is the maximum of parcel-count, size-unit, and weight ratios. Compatible reachable racks are preferred over floor storage. Candidates are ordered by inbound route cost, then current utilization. Compatibility is checked before any distance ranking. Dijkstra's algorithm is implemented in `server/src/algorithms/dijkstra.js`; routes are rechecked on check-in, transfer, retrieval, and dispatch.
+## Operating rules
 
-Short PostgreSQL mutations share an advisory transaction lock. Capacity checks, parcel updates, identifier counters, and audit entries therefore commit together and concurrent check-ins cannot overfill a rack.
+- Status progresses **Stored ? Retrieved ? Dispatched**. Retrieved parcels retain occupancy; successful dispatch frees it.
+- Dimensions are centimeters and weight is kilograms per item. Quantity multiplies weight/space use. Small/Medium/Large consume 1/2/4 size units each.
+- Server-side classification uses measured dimensions and configured limits. Historical unmeasured records retain legacy size until corrected.
+- Physical fit permits horizontal rotation with upright height. It is not a 3D packing simulation.
+- Compatibility checks dimensions, quantities, units, weight, category, availability, floor policy and two-way access. Sorting prioritizes racks, inbound route cost, utilization and code. The supplemental numeric score is not the active sort comparator.
+- Dijkstra minimizes weighted movement cost through accessible cells with allowed directions. Outbound/return routes are independent; steps are grid movements, not meters. Nonwalkable storage uses an adjacent accessible pickup cell.
+- Short mutations use a shared advisory transaction lock. Capacity decisions, counters, changes and audit records commit together. Layout/settings revisions reject stale edits.
+- Dispatch checks current state and code on the server. Restored drafts never restore QR verification.
 
 ## Commands and verification
 
-```powershell
-npm.cmd test          # backend and algorithm tests
-npm.cmd run test:ui   # browser workflows; requires Chromium
-npm.cmd run build     # production frontend
-npm.cmd run test:production # browser workflows against the Express-served build
-npm.cmd start         # Express serves API + built React frontend on port 3001
-npm.cmd run db:backup # private PostgreSQL dump under .local/backups
-```
+| Command                            | Purpose                                            |
+| ---------------------------------- | -------------------------------------------------- |
+| `npm run dev`                      | API and frontend development                       |
+| `npm run db:setup`                 | Migrations and initial data                        |
+| `npm test`                         | Algorithms, HA helpers and PostgreSQL API tests    |
+| `npm run test:ui`                  | Playwright workflows                               |
+| `npm run build`                    | Production frontend in client/dist                 |
+| `npm run test:production`          | Build/browser tests against Express static hosting |
+| `npm start`                        | Persistent API and built frontend                  |
+| `npm run db:backup`                | One backup and configured database synchronization |
+| `npm run db:backup-worker`         | Legacy interval worker                             |
+| `node scripts/generate-postman.js` | Generate Postman collection                        |
+| `npm run format`                   | Format repository                                  |
 
-If Chromium is missing, run `npx.cmd playwright install chromium`. Tests create an isolated, randomly named `wsrms_test_*` schema in the configured database and drop only that schema afterwards. The database user needs `CREATE SCHEMA` permission. Tests do not change normal warehouse data. GitHub Actions runs the same checks against an isolated PostgreSQL service.
+Install Chromium with `npx playwright install chromium`. Normal tests create/remove a random `wsrms_test_*` schema. Recovery tests also create/drop a separate random database; the account needs those privileges. Opt-in deployed tests write real records and require a designated deployment/private accounts.
 
-Production `NODE_ENV=production` enables Secure session cookies, so serve through HTTPS and set `APP_ORIGIN` to the actual origin. Use a dedicated database account, managed environment secrets, and database backups for deployment. The production application is deployed at https://wsrms-inventory.vercel.app.
+CI runs Node 24, PostgreSQL 18 and matching tools, backend tests, build and browser flows. Test success proves covered scenarios, not formal security/accessibility/availability certification.
 
-For the current local setup, open **http://127.0.0.1:3001** after building and starting. Another application may occupy port 5173; the Express-served build avoids that conflict.
+## Production and recovery
 
-Initialization applies `database/migrations/002_inventory_cells.sql` once. The migration preserves existing parcel IDs, storage assignments, and audit history while extending legacy racks into storage locations. A private backup was taken before migrating the local database. Repeat initialization does not reset records or reapply the layout conversion. The API now uses `location_id`, `location_code`, and `locations` instead of the former rack-only names.
+Vercel serves client/dist and routes API calls to api/index.js. Configure DATABASE_URL, optional DATABASE_URL_UNPOOLED, APP_ORIGIN, NODE_ENV=production and private seed credentials. Production cookies require HTTPS. Public-schema queries can use pooled Neon; migrations/backups use direct connections.
 
-## Project structure
+The [nightly workflow](.github/workflows/nightly-backup.yml) targets **2:00 AM Philippine time** (`0 18 * * *` UTC). Repository secrets WSRMS_PRIMARY_DATABASE_URL and WSRMS_BACKUP_DATABASE_URL must be distinct direct Neon connections. GitHub runs the copy without an online computer. Manual execution is under **Actions ? Nightly Neon backup ? Run workflow**; scheduled jobs may be delayed.
 
-```text
-client/src/       React pages, components, hooks, services, Tailwind/styles
-server/src/       Express routes, controllers, services, algorithms, models
-database/        PostgreSQL schema and idempotent JavaScript seed
-docs/api/        API reference and importable Postman collection
-docs/diagrams/   Architecture, entity relationships, and operation flows
-tests/           Algorithm, PostgreSQL API, and Playwright browser tests
-scripts/         Database setup and isolated test runner
-.github/         GitHub Actions checks
-```
+The job validates an archive, replaces the dedicated target schema transactionally, checks tables, clears copied sessions and records results. Runner dumps are ephemeral; independent archive retention is not included. Set Vercel BACKUP_WARNING_HOURS=30 and BACKUP_INTERVAL_HOURS=0, then redeploy for nightly monitoring. Disable competing workers after cloud verification.
 
-API documentation: [docs/api/README.md](docs/api/README.md). Import [docs/api/WSRMS.postman_collection.json](docs/api/WSRMS.postman_collection.json) into Postman; sign in first so the cookie jar authenticates later requests.
+## Scope and limitations
 
-## Recovery and operations update
-
-- Check-in and parcel correction now require measured length, width, height (cm), and weight (kg). Size is classified on the server from administrator-controlled thresholds. Historical parcels retain their existing size and show **Not measured** until corrected; no dimensions are invented for old records.
-- Rack/floor configurations include width, depth, height, maximum total weight, capacity, and live occupancy. Parcels can rotate in the horizontal plane; height remains upright. These are compatibility limits, not a three-dimensional packing simulator. Configure physical limits for the actual warehouse before using recommendations.
-- User-scoped browser drafts quietly save check-in, parcel correction, dispatch selection, and layout/rack configuration. Restore/discard banners appear on return. Drafts expire after seven days. A recovered dispatch selection always fetches the parcel and current route again; QR verification is never restored. Saving a draft creates no inventory transaction.
-- Profile changes accept static JPEG/PNG/WEBP up to 500 KB and 4096 x 4096 pixels. The server decodes and re-encodes a 256-pixel WEBP avatar, stripping metadata. Staff submit requests for administrator approval. Existing staff pictures remain active until approval; administrator picture changes save immediately.
-- Presence is derived from session timestamps. Visible tabs send a heartbeat once per minute; the server limits writes to once per 45 seconds per session. Online requires activity within five minutes and a heartbeat within three minutes. Idle applies until 30 minutes without activity; lost connection, expired sessions, or logout yield Offline. Account Active/Inactive/Suspended remains separate.
-- Admin **Database health** shows primary activity, verified backup age/size/history, failures, and recovery controls. See [backup and recovery setup](docs/operations/recovery.md). Schema migration 003 applies automatically once at startup, with existing records preserved.
+The handbook addresses requirements, design, relational integrity, access control, migrations, testing, CI/CD, operations and maintenance. Business views generally poll rather than use WebSockets. Scanning needs localhost/HTTPS and permission; real printer/scanner compatibility needs hardware tests. Process health is not full database readiness. Continuous replication, automatic recovery promotion, measured RTO/availability guarantees and formal security/accessibility certification are not provided by these features.

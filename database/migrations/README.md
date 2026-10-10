@@ -15,3 +15,5 @@ Take a private backup with `npm run db:backup` before upgrading another existing
 `006_team_messaging.sql` adds authenticated team messages, announcements and system updates with user foreign keys, indexed channel history, and per-user read cursors. Announcements archive without erasing their records. The existing migration transaction applies it once; all messaging data is included in database backups.
 
 `007_chat_activity.sql` adds short-lived typing activity shared across server instances. Only user identity and expiration are stored; message drafts stay in the browser. Expired, inactive and deleted users are excluded from typing indicators.
+
+`008_manager_role.sql` extends the user role constraint with `manager`. Existing roles and account records are retained; administrators assign the new role. Initialization tracks the migration alongside versions 002?007.
