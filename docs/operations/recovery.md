@@ -51,8 +51,8 @@ This workstation's private `.local/cloud-backup.env` connects the worker to the 
 ```powershell
 # One cloud backup, with its result recorded in the cloud monitoring ledger
 node --env-file=.local/cloud-backup.env scripts/backup-database.js
-# Hourly backups while this host and process remain running
-node --env-file=.local/cloud-backup.env scripts/backup-worker.js
+# Install the nightly copy at 02:00 Philippine time
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-cloud-backup-task.ps1
 ```
 
 Do not run the local-primary and cloud-primary workers against the same backup database at the same time: each replaces that recovery copy. Their archived dump files are kept in separate directories. The private cloud configuration is ignored by Git and Vercel uploads. A different backup host needs its own private configuration.
@@ -88,6 +88,6 @@ Drafts are local to an account and browser, expire after seven days, and need br
 
 ### Windows automatic cloud backups
 
-On this workstation, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-cloud-backup-task.ps1` to install the **WSRMS Cloud Database Backup** scheduled task. It runs hourly and at sign-in, uses the private `.local/cloud-backup.env`, and starts without a visible window. Check its result with `Get-ScheduledTaskInfo -TaskName 'WSRMS Cloud Database Backup'`. Standard output and errors are saved in `.local/cloud-backup.log` and `.local/cloud-backup.error.log`; completed synchronization is also recorded in the primary database monitoring ledger.
+On this workstation, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-cloud-backup-task.ps1` to install the **WSRMS Cloud Database Backup** scheduled task. It runs once daily at **2:00 AM Philippine time (UTC+08:00)**, uses the private `.local/cloud-backup.env`, and starts without a visible window. Installing it replaces the previous hourly/sign-in triggers. To choose another time, pass `-NightlyTime "23:00"` (24-hour Philippine time). The task requests wake from sleep when supported. Missed sessions are skipped rather than copied during daytime or at sign-in. Check its result with `Get-ScheduledTaskInfo -TaskName 'WSRMS Cloud Database Backup'`. Standard output and errors are saved in `.local/cloud-backup.log` and `.local/cloud-backup.error.log`; completed synchronization is also recorded in the primary database monitoring ledger.
 
-This task runs while its Windows user is signed in and the workstation is powered on and connected. The backup is an hourly recovery copy, so recent transactions can remain pending until the next run. Use the persistent VPS service described above for backups that continue while the workstation is off. Do not run another worker against the same backup target at the same time.
+This task runs while its Windows user is signed in and the workstation is powered on and connected. The backup is a nightly recovery copy, so changes after the last session remain pending until the next night. Keep `BACKUP_INTERVAL_HOURS=0` in both the application and private cloud environment, and stop any interval backup worker. Set `BACKUP_WARNING_HOURS=30` on the backup host and hosted application so a healthy daily copy is not flagged after six hours. The task runner enforces these settings for its own process. Use the persistent VPS service described above for backups that continue while the workstation is off. Do not run another worker against the same backup target at the same time.

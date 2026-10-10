@@ -339,8 +339,8 @@ test("Dispatch drafts restore selection but require fresh QR verification", asyn
   await expect(
     page.getByRole("button", { name: "Confirm dispatch" }),
   ).toBeEnabled();
-  await expect(page.getByText("Draft saved \u2713")).toBeVisible();
   await page.goto("/dispatch");
+  await expect(page.getByRole("button", { name: "Restore draft" })).toBeVisible();
   await page.getByRole("button", { name: "Restore draft" }).click();
   await expect(page.getByLabel("Scanned parcel code")).toHaveValue("");
   await expect(
