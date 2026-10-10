@@ -5,6 +5,6 @@ import validate from "../middleware/validateRequest.js";
 import { categorySchema } from "../utils/schemas.js";
 const r = Router();
 r.get("/", c.list);
-r.post("/", role("admin"), validate(categorySchema), c.create);
-r.put("/:id", role("admin"), validate(categorySchema), c.update);
+r.post("/", role("admin", "manager"), validate(categorySchema), c.create);
+r.put("/:id", role("admin", "manager"), validate(categorySchema), c.update);
 export default r;

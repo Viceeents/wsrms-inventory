@@ -50,14 +50,16 @@ export default function AppRoutes() {
           <Route path="labels" element={<LabelPrintPage />} />
           <Route element={<ProtectedRoute admin />}>
             <Route path="admin/database" element={<DatabasePage />} />
+            <Route path="admin/users" element={<UsersPage />} />
+          </Route>
+          <Route element={<ProtectedRoute roles={["admin", "manager"]} />}>
+            <Route path="admin/settings" element={<SystemSettingsPage />} />
+            <Route path="admin/layout" element={<LayoutEditorPage />} />
+            <Route path="admin/categories" element={<CategoriesPage />} />
             <Route
               path="admin/profile-requests"
               element={<ProfileRequestsPage />}
             />
-            <Route path="admin/settings" element={<SystemSettingsPage />} />
-            <Route path="admin/layout" element={<LayoutEditorPage />} />
-            <Route path="admin/users" element={<UsersPage />} />
-            <Route path="admin/categories" element={<CategoriesPage />} />
             <Route path="admin/reports" element={<ReportsPage />} />
           </Route>
           <Route

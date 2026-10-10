@@ -16,8 +16,21 @@ jobs:
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgresql://wsrms:ci-password@localhost:5432/wsrms_inventory_db
+      PG_DUMP_PATH: /usr/lib/postgresql/18/bin/pg_dump
+      PG_RESTORE_PATH: /usr/lib/postgresql/18/bin/pg_restore
+      PSQL_PATH: /usr/lib/postgresql/18/bin/psql
     steps:
       - uses: actions/checkout@v4
+      - name: Install PostgreSQL 18 backup tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-common
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          "$PG_DUMP_PATH" --version
+          "$PG_RESTORE_PATH" --version
+          "$PSQL_PATH" --version
       - uses: actions/setup-node@v4
         with:
           node-version: 24

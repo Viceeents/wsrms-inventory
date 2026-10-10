@@ -71,7 +71,7 @@ app.use("/api/warehouse", warehouseRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/categories", categoryRoutes);
 app.use("/api/users", role("admin"), userRoutes);
-app.use("/api/reports", role("admin"), reportRoutes);
+app.use("/api/reports", role("admin", "manager"), reportRoutes);
 app.use("/api", (req, res) =>
   res.status(404).json({
     message: "API endpoint not found.",

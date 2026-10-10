@@ -104,7 +104,7 @@ export default function WarehouseMapPage() {
           <RotateCw size={16} />
           Refresh
         </Button>
-        {user.role === "admin" && (
+        {["admin", "manager"].includes(user.role) && (
           <Link className="btn btn-primary" to="/admin/layout">
             <Grid2X2 size={16} />
             Edit layout

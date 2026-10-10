@@ -54,16 +54,22 @@ export const navGroups = [
     ],
   },
   {
+    title: "MANAGEMENT",
+    roles: ["admin", "manager"],
+    items: [
+      ["/admin/profile-requests", "Profile requests", Users],
+      ["/admin/layout", "Layout editor", Grid2X2],
+      ["/admin/categories", "Categories", Tags],
+      ["/admin/settings", "System settings", SlidersHorizontal],
+      ["/admin/reports", "Reports", ChartNoAxesCombined],
+    ],
+  },
+  {
     title: "ADMINISTRATION",
     admin: true,
     items: [
       ["/admin/database", "Database health", History],
-      ["/admin/profile-requests", "Profile requests", Users],
-      ["/admin/layout", "Layout editor", Grid2X2],
       ["/admin/users", "Team members", Users],
-      ["/admin/categories", "Categories", Tags],
-      ["/admin/reports", "Reports", ChartNoAxesCombined],
-      ["/admin/settings", "System settings", SlidersHorizontal],
     ],
   },
 ];
@@ -94,7 +100,11 @@ export default function Sidebar({ open, onClose }) {
         </div>
         <nav>
           {navGroups
-            .filter((g) => !g.admin || user.role === "admin")
+            .filter(
+              (g) =>
+                (!g.admin || user.role === "admin") &&
+                (!g.roles || g.roles.includes(user.role)),
+            )
             .map((group) => (
               <div className="nav-group" key={group.title}>
                 <p>{group.title}</p>
@@ -130,7 +140,13 @@ export default function Sidebar({ open, onClose }) {
           <div>
             <strong>{user.name}</strong>
             <small>
-              {user.role === "admin" ? "Administrator" : "Warehouse staff"}
+              {
+                {
+                  admin: "Administrator",
+                  manager: "Warehouse manager",
+                  staff: "Warehouse staff",
+                }[user.role]
+              }
             </small>
           </div>
           <button

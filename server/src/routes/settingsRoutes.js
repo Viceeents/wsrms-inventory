@@ -16,10 +16,10 @@ r.put(
   ),
   c.savePreferences,
 );
-r.get("/system-settings", role("admin"), c.systemSettings);
+r.get("/system-settings", role("admin", "manager"), c.systemSettings);
 r.put(
   "/system-settings",
-  role("admin"),
+  role("admin", "manager"),
   validate(
     z.object({
       revision: z.number().int().positive(),

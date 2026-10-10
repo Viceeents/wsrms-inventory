@@ -6,6 +6,6 @@ import { layoutSchema } from "../utils/schemas.js";
 const r = Router();
 r.get("/", c.details);
 r.get("/locations/:id/route", c.route);
-r.put("/", role("admin"), validate(layoutSchema), c.update);
+r.put("/", role("admin", "manager"), validate(layoutSchema), c.update);
 r.get("/racks/:rack/route", c.rackRoute);
 export default r;

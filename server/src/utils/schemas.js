@@ -25,7 +25,7 @@ export const userSchema = z.object({
     .email()
     .max(200)
     .transform((s) => s.toLowerCase()),
-  role: z.enum(["staff", "admin"]),
+  role: z.enum(["staff", "manager", "admin"]),
   active: z.coerce.number().int().min(0).max(1).default(1),
   suspended: z.boolean().default(false),
   password: z.string().min(10).max(128),

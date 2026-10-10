@@ -85,3 +85,9 @@ Replication is displayed as **Not configured**. A provider-managed recovery/repl
 `PRESENCE_IDLE_MINUTES` defaults to 5 and `PRESENCE_OFFLINE_MINUTES` to 30. Offline must exceed Idle; the server enforces bounds. Heartbeat connection loss is detected after three minutes. User timestamps are retained for administration; users are never stored as permanently Online.
 
 Drafts are local to an account and browser, expire after seven days, and need browser storage to be available. They do not synchronize between devices. Confirmed actions and discarded drafts are removed. Layout drafts retain the original revision so a newer warehouse layout cannot be overwritten silently.
+
+### Windows automatic cloud backups
+
+On this workstation, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/install-cloud-backup-task.ps1` to install the **WSRMS Cloud Database Backup** scheduled task. It runs hourly and at sign-in, uses the private `.local/cloud-backup.env`, and starts without a visible window. Check its result with `Get-ScheduledTaskInfo -TaskName 'WSRMS Cloud Database Backup'`. Standard output and errors are saved in `.local/cloud-backup.log` and `.local/cloud-backup.error.log`; completed synchronization is also recorded in the primary database monitoring ledger.
+
+This task runs while its Windows user is signed in and the workstation is powered on and connected. The backup is an hourly recovery copy, so recent transactions can remain pending until the next run. Use the persistent VPS service described above for backups that continue while the workstation is off. Do not run another worker against the same backup target at the same time.

@@ -115,9 +115,13 @@ export default function UsersPage() {
                     <td>
                       <span className="role-chip">
                         <Users size={13} />
-                        {u.role === "admin"
-                          ? "Administrator"
-                          : "Warehouse staff"}
+                        {
+                          {
+                            admin: "Administrator",
+                            manager: "Warehouse manager",
+                            staff: "Warehouse staff",
+                          }[u.role]
+                        }
                       </span>
                     </td>
                     <td>
@@ -307,6 +311,7 @@ export default function UsersPage() {
                   onChange={(e) => setEdit({ ...edit, role: e.target.value })}
                 >
                   <option value="staff">Warehouse staff</option>
+                  <option value="manager">Warehouse manager</option>
                   <option value="admin">Administrator</option>
                 </select>
               </Field>

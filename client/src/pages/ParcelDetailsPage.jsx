@@ -128,7 +128,7 @@ export default function ParcelDetailsPage() {
         description={p.description}
       >
         <StatusBadge status={p.status} />
-        {user.role === "admin" && (
+        {["admin", "manager"].includes(user.role) && (
           <Button
             variant="secondary"
             onClick={() => {
@@ -155,7 +155,7 @@ export default function ParcelDetailsPage() {
           </Link>
         )}
       </PageTitle>
-      {user.role === "admin" && (
+      {["admin", "manager"].includes(user.role) && (
         <DraftNotice
           draft={recovery}
           label="Unfinished parcel correction found"

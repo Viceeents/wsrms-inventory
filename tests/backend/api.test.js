@@ -16,6 +16,7 @@ import {
   db,
   get,
   run,
+  query,
 } from "../../server/src/config/database.js";
 const admin = request.agent(app),
   staff = request.agent(app);
@@ -854,6 +855,12 @@ test("Backup creation, failure monitoring, and restore permissions do not change
   await staff.post("/api/admin/database/backups").expect(403);
   await staff.post("/api/admin/database/restore").send({}).expect(403);
   const before = await get("SELECT COUNT(*) AS count FROM parcels");
+  const initialHealth = (await admin.get("/api/admin/database").expect(200)).body;
+  assert.equal(
+    initialHealth.primary.status,
+    "Online",
+    "Primary database must be online before backup",
+  );
   const backupResponse = await admin.post("/api/admin/database/backups");
   assert.equal(backupResponse.status, 201, JSON.stringify(backupResponse.body));
   const backup = backupResponse.body;
@@ -1251,4 +1258,62 @@ test("Rack group paths use the existing router and validate destinations", async
     assert.equal(result.totalSteps, result.inboundSteps + result.returnSteps);
   }
   await staff.get("/api/warehouse/racks/Z/route").expect(400);
+});
+
+test("Existing databases apply the pending manager migration", async () => {
+  await query("DELETE FROM schema_migrations WHERE version='008_manager_role'");
+  await query("ALTER TABLE users DROP CONSTRAINT users_role_check");
+  await query(
+    "ALTER TABLE users ADD CONSTRAINT users_role_check CHECK (role IN ('admin','staff'))",
+  );
+  await initializeDatabase();
+  assert.ok(
+    await get(
+      "SELECT version FROM schema_migrations WHERE version=?",
+      "008_manager_role",
+    ),
+  );
+});
+
+test("Managers can manage warehouse operations while account management stays restricted", async () => {
+  const account = {
+    name: "Warehouse Manager",
+    email: "manager@test.example",
+    password: "Manager@2026",
+    role: "manager",
+    active: 1,
+  };
+  const created = (await admin.post("/api/users").send(account).expect(201))
+    .body;
+  assert.equal(created.role, "manager");
+  const manager = request.agent(app);
+  await manager
+    .post("/api/auth/login")
+    .send({ email: account.email, password: account.password })
+    .expect(200);
+  await manager.get("/api/reports").expect(200);
+  await manager.get("/api/reports/export/parcels").expect(200);
+  await manager.get("/api/parcels").expect(200);
+  await manager.get("/api/transactions").expect(200);
+  await manager.get("/api/users").expect(403);
+  await manager.post("/api/users").send(account).expect(403);
+  await manager.put("/api/warehouse").send({}).expect(400);
+  await staff.put("/api/warehouse").send({}).expect(403);
+  await manager.get("/api/system-settings").expect(200);
+  await manager.put("/api/system-settings").send({}).expect(400);
+  await staff.get("/api/system-settings").expect(403);
+  await manager
+    .post("/api/categories")
+    .send({ name: "Manager category", color: "#123456" })
+    .expect(201);
+  await manager.patch("/api/parcels/1").send({}).expect(400);
+  await staff.patch("/api/parcels/1").send({}).expect(403);
+  await manager.get("/api/admin/profile-requests").expect(200);
+  await manager
+    .post("/api/admin/profile-requests/999999/review")
+    .send({ status: "Approved" })
+    .expect(404);
+  await staff.get("/api/admin/profile-requests").expect(403);
+  await manager.get("/api/admin/database").expect(403);
+  await staff.get("/api/reports").expect(403);
 });

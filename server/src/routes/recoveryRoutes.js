@@ -114,7 +114,7 @@ r.post(
     res.status(201).json({ ...request, status: "Pending" });
   },
 );
-r.get("/admin/profile-requests", role("admin"), async (req, res) =>
+r.get("/admin/profile-requests", role("admin", "manager"), async (req, res) =>
   res.json(
     await all(
       "SELECT p.*,u.name,u.code FROM profile_image_requests p JOIN users u ON u.id=p.user_id ORDER BY (p.status='Pending') DESC,p.id DESC LIMIT 100",
@@ -123,7 +123,7 @@ r.get("/admin/profile-requests", role("admin"), async (req, res) =>
 );
 r.post(
   "/admin/profile-requests/:id/review",
-  role("admin"),
+  role("admin", "manager"),
   validate(z.object({ status: z.enum(["Approved", "Rejected"]) })),
   async (req, res) => {
     await atomic(async () => {
@@ -137,7 +137,7 @@ r.post(
       if (request.user_id === req.user.id)
         throw new HttpError(
           403,
-          "Another administrator must review your picture request.",
+          "Another administrator or manager must review your picture request.",
         );
       if (req.body.status === "Approved")
         await run(

@@ -122,7 +122,7 @@ export default function ProfileRequestsPage() {
           )}
           {selected.user_id === user.id && (
             <p className="muted">
-              Another administrator must review your request.
+              Another administrator or manager must review your request.
             </p>
           )}
         </Modal>

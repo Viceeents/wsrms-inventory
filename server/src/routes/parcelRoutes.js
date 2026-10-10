@@ -11,7 +11,7 @@ r.post("/", validate(checkInSchema), c.create);
 r.get("/:id", c.details);
 r.patch(
   "/:id",
-  role("admin"),
+  role("admin", "manager"),
   validate(parcelSchema.extend({ reason: z.string().trim().min(5).max(250) })),
   c.correct,
 );
