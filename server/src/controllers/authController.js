@@ -1,10 +1,11 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { get, run, atomic } from "../config/database.js";
 import { verifyPassword, hashPassword } from "../utils/password.js";
 import { tokenHash, readToken } from "../middleware/authMiddleware.js";
 import { env } from "../config/env.js";
 import { audit } from "../services/auditService.js";
 import { HttpError } from "../middleware/errorMiddleware.js";
+const unavailableHash = hashPassword("unavailable-account");
 const cookieOptions = {
   httpOnly: true,
   sameSite: "strict",
@@ -13,6 +14,22 @@ const cookieOptions = {
   maxAge: 8 * 60 * 60 * 1000,
 };
 export async function login(req, res) {
+  // Database counters apply across Vercel instances. Hash identities in storage.
+  const bucket = Math.floor(Date.now() / 900_000);
+  const key = createHash("sha256")
+    .update(req.body.email.toLowerCase())
+    .digest("hex");
+  const attempt = await get(
+    "INSERT INTO login_attempts(identity_hash,bucket,attempts) VALUES(?,?,1) ON CONFLICT(identity_hash) DO UPDATE SET bucket=EXCLUDED.bucket,attempts=CASE WHEN login_attempts.bucket=EXCLUDED.bucket THEN login_attempts.attempts+1 ELSE 1 END RETURNING attempts",
+    key,
+    bucket,
+  );
+  if (attempt.attempts > 30)
+    return res
+      .status(429)
+      .set("Retry-After", String(900 - (Math.floor(Date.now() / 1000) % 900)))
+      .json({ message: "Too many sign-in attempts. Please try again later." });
+
   const user = await get(
     "SELECT * FROM users WHERE email=? AND active=1 AND suspended=false AND deleted_at IS NULL",
     req.body.email.toLowerCase(),
@@ -20,12 +37,21 @@ export async function login(req, res) {
   // Always run a password hash to reduce account-discovery timing differences.
   const valid = verifyPassword(
     req.body.password,
-    user?.password_hash || hashPassword("unavailable-account"),
+    user?.password_hash || unavailableHash,
   );
   if (!user || !valid)
     throw new HttpError(401, "Email or password is incorrect.");
   const token = randomBytes(32).toString("hex");
   await atomic(async () => {
+    await run(
+      "DELETE FROM login_attempts WHERE identity_hash=? OR bucket<?",
+      key,
+      bucket - 1,
+    );
+    await run(
+      "DELETE FROM sessions WHERE token_hash=?",
+      tokenHash(readToken(req)),
+    );
     await run(
       "DELETE FROM sessions WHERE expires_at<=?",
       new Date().toISOString(),
@@ -50,7 +76,11 @@ export async function login(req, res) {
     );
     await audit(user.id, "Sign-in");
   });
-  const { password_hash, ...safe } = user;
+  const safe = Object.fromEntries(
+    ["id", "code", "name", "email", "role", "active", "profile_image"].map(
+      (key) => [key, user[key]],
+    ),
+  );
   res.cookie("wsrms_session", token, cookieOptions).json(safe);
 }
 export async function logout(req, res) {

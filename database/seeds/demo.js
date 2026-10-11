@@ -8,6 +8,20 @@ import { env } from "../../server/src/config/env.js";
 import { hashPassword } from "../../server/src/utils/password.js";
 export async function seed() {
   if (await get("SELECT id FROM warehouse")) return;
+  if (
+    env.production &&
+    (!process.env.ADMIN_PASSWORD ||
+      !process.env.STAFF_PASSWORD ||
+      [env.adminPassword, env.staffPassword].some(
+        (password) =>
+          password.length < 12 ||
+          ["Warehouse@2026", "Staff@2026"].includes(password),
+      ) ||
+      env.adminPassword === env.staffPassword)
+  )
+    throw new Error(
+      "Configure distinct strong bootstrap passwords before initializing a new production database.",
+    );
   await atomic(async () => {
     const now = new Date().toISOString();
     await run(

@@ -1324,3 +1324,78 @@ test("Managers can manage warehouse operations while account management stays re
   await manager.get("/api/admin/database").expect(403);
   await staff.get("/api/reports").expect(403);
 });
+
+test("Security headers, browser mutation checks and parser errors fail safely", async () => {
+  const health = await request(app).get("/api/health").expect(200);
+  assert.match(
+    health.headers["content-security-policy"],
+    /frame-ancestors 'none'/,
+  );
+  assert.equal(health.headers["cache-control"], "no-store");
+  assert.equal(health.headers["x-content-type-options"], "nosniff");
+  await admin
+    .post("/api/auth/logout")
+    .set("Sec-Fetch-Site", "cross-site")
+    .expect(403);
+  await admin
+    .post("/api/auth/logout")
+    .set("Referer", "https://attacker.example/form")
+    .expect(403);
+  await request(app)
+    .post("/api/auth/login")
+    .type("form")
+    .send({ email: "admin@wsrms.local", password: "bad" })
+    .expect(415);
+  const invalid = await request(app)
+    .post("/api/auth/login")
+    .set("Content-Type", "application/json")
+    .send('{"private":"secret",')
+    .expect(400);
+  assert.deepEqual(invalid.body, { message: "Invalid JSON request." });
+  const oversized = await request(app)
+    .post("/api/auth/login")
+    .send({ password: "x".repeat(1048576) })
+    .expect(413);
+  assert.deepEqual(oversized.body, { message: "Request body is too large." });
+});
+
+test("Login rotates old sessions and shares account throttling across instances", async () => {
+  const visitor = request.agent(app);
+  const credentials = { email: "staff@wsrms.local", password: "Staff@2026" };
+  const first = await visitor
+    .post("/api/auth/login")
+    .send(credentials)
+    .expect(200);
+  assert.equal(first.body.password_hash, undefined);
+  const cookie = first.headers["set-cookie"][0].split(";")[0];
+  await visitor.post("/api/auth/login").send(credentials).expect(200);
+  await request(app).get("/api/auth/me").set("Cookie", cookie).expect(401);
+  await visitor.get("/api/auth/me").expect(200);
+  const { createHash } = await import("node:crypto");
+  const email = "blocked@test.example";
+  await run(
+    "INSERT INTO login_attempts(identity_hash,bucket,attempts) VALUES(?,?,?)",
+    createHash("sha256").update(email).digest("hex"),
+    Math.floor(Date.now() / 900000),
+    30,
+  );
+  const blocked = await request(app)
+    .post("/api/auth/login")
+    .send({ email, password: "wrong" })
+    .expect(429);
+  assert.ok(Number(blocked.headers["retry-after"]) > 0);
+});
+
+test("SQL injection remains data and CSV exports neutralize formulas", async () => {
+  await request(app)
+    .post("/api/auth/login")
+    .send({ email: "sql@test.example", password: "' OR 1=1 --" })
+    .expect(401);
+  const rows = (
+    await staff.get("/api/parcels").query({ q: "' OR 1=1 --" }).expect(200)
+  ).body;
+  assert.deepEqual(rows, []);
+  const { toCsv } = await import("../../server/src/services/reportService.js");
+  for (const value of ["=1+1", "+SUM(A1)", "@SUM(A1)", "-1+2", "\t=1+1"])
+    assert.ok(toCsv([{ value }]).includes(`"'${value}"`));
+});

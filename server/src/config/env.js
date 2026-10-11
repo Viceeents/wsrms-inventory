@@ -19,7 +19,10 @@ export const env = {
     process.env.HA_DATABASE_URL || process.env.DATABASE_URL_UNPOOLED,
   schema: process.env.DB_SCHEMA || "public",
   production: process.env.NODE_ENV === "production",
-  seedDemo: process.env.SEED_DEMO !== "false",
+  seedDemo:
+    process.env.SEED_DEMO === "true" ||
+    (process.env.NODE_ENV !== "production" &&
+      process.env.SEED_DEMO !== "false"),
   adminPassword: process.env.ADMIN_PASSWORD || "Warehouse@2026",
   staffPassword: process.env.STAFF_PASSWORD || "Staff@2026",
   origin: process.env.APP_ORIGIN || "http://localhost:5173",

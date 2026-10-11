@@ -17,6 +17,10 @@ import settingsRoutes from "./routes/settingsRoutes.js";
 import recoveryRoutes from "./routes/recoveryRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
 import { summary } from "./controllers/reportController.js";
+import {
+  apiRateLimit,
+  browserRequestGuard,
+} from "./middleware/securityMiddleware.js";
 const app = express();
 if (process.env.VERCEL === "1") app.set("trust proxy", 1);
 app.disable("x-powered-by");
@@ -31,30 +35,16 @@ app.use(
         connectSrc: ["'self'"],
         fontSrc: ["'self'"],
         objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
         upgradeInsecureRequests: env.production ? [] : null,
       },
     },
     crossOriginEmbedderPolicy: false,
   }),
 );
-app.use(
-  express.json({
-    limit: "1mb",
-  }),
-);
-app.use("/api", (req, res, next) => {
-  if (
-    !["GET", "HEAD", "OPTIONS"].includes(req.method) &&
-    req.headers.origin &&
-    ![env.origin, `${req.protocol}://${req.get("host")}`].includes(
-      req.headers.origin,
-    )
-  )
-    return res.status(403).json({
-      message: "Request origin is not allowed.",
-    });
-  next();
-});
+app.use("/api", browserRequestGuard, apiRateLimit);
+app.use(express.json({ limit: "1mb" }));
 app.get("/api/health", (req, res) =>
   res.json({
     status: "ok",
