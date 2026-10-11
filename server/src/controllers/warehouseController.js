@@ -10,47 +10,6 @@ import { HttpError } from "../middleware/errorMiddleware.js";
 import { sizeUnits } from "../algorithms/storageScoring.js";
 import { dimensionsFit } from "../algorithms/parcelDimensions.js";
 export const details = async (req, res) => res.json(await getWarehouse());
-export async function rackRoute(req, res) {
-  const rack = String(req.params.rack).toUpperCase();
-  if (!["A", "B", "C"].includes(rack))
-    throw new HttpError(400, "Choose Rack A, B, or C.");
-  const warehouse = await getWarehouse();
-  const candidates = warehouse.locations.filter(
-    (l) =>
-      l.storage_type === "rack" &&
-      l.active &&
-      l.can_store &&
-      l.status !== "Blocked" &&
-      new RegExp(`^${rack}(?:[- .]|$)`, "i").test(l.code),
-  );
-  if (!candidates.length)
-    throw new HttpError(
-      409,
-      `Rack ${rack} has no available storage destinations.`,
-    );
-  const routes = candidates
-    .map((l) => ({
-      location: l,
-      route: routeToLocation(warehouse, l, req.query.start),
-    }))
-    .filter((r) => r.route);
-  routes.sort(
-    (a, b) =>
-      a.route.inbound.cost - b.route.inbound.cost ||
-      a.route.inboundSteps - b.route.inboundSteps ||
-      a.location.id - b.location.id,
-  );
-  if (!routes.length)
-    throw new HttpError(
-      409,
-      `Rack ${rack} cannot currently be reached. Check for blocked paths.`,
-    );
-  res.json({
-    ...routes[0].route,
-    rackLabel: `Rack ${rack}`,
-    locationCode: routes[0].location.code,
-  });
-}
 export async function route(req, res) {
   const warehouse = await getWarehouse();
   const location = warehouse.locations.find(

@@ -7,5 +7,4 @@ const r = Router();
 r.get("/", c.details);
 r.get("/locations/:id/route", c.route);
 r.put("/", role("admin", "manager"), validate(layoutSchema), c.update);
-r.get("/racks/:rack/route", c.rackRoute);
 export default r;

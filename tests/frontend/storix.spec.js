@@ -9,7 +9,7 @@ async function login(page) {
     page.getByRole("heading", { name: /Welcome back,/ }),
   ).toBeVisible();
 }
-test("Storix phone navigation, chat, rack routes and both themes", async ({
+test("Storix phone navigation, chat, individual storage routes and both themes", async ({
   page,
 }) => {
   const errors = [];
@@ -37,16 +37,16 @@ test("Storix phone navigation, chat, rack routes and both themes", async ({
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await nav.getByRole("link", { name: "Map", exact: true }).click();
-  for (const rack of ["A", "B", "C"]) {
-    await page
-      .getByRole("button", { name: `Rack ${rack}`, exact: true })
-      .click();
-    await page.getByRole("button", { name: "Show Best Path" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Rack destination" }),
+  ).toHaveCount(0);
+  for (const rack of ["A", "B", "C"])
     await expect(
-      page.getByText(`Destination: Rack ${rack}`, { exact: true }),
-    ).toBeVisible();
-    await expect(page.locator(".route-overlay polyline")).toHaveCount(2);
-  }
+      page.getByRole("button", { name: `Rack ${rack}`, exact: true }),
+    ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Show Best Path" }),
+  ).toHaveCount(0);
   const gridRack = page.locator(".grid-cell.cell-rack").first();
   const rackCode = await gridRack.locator("b").innerText();
   await gridRack.click();
@@ -70,6 +70,7 @@ test("Storix phone navigation, chat, rack routes and both themes", async ({
   });
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await gridRack.click();
   await page.getByRole("button", { name: "Show Best Path" }).click();
   await expect(page.locator(".route-overlay")).toBeVisible();
   await page.screenshot({

@@ -28,7 +28,6 @@ export default function WarehouseMapPage() {
     [start, setStart] = useState(""),
     [error, setError] = useState(""),
     [chooseStart, setChooseStart] = useState(false);
-  const [rack, setRack] = useState("A");
   const [routeBusy, setRouteBusy] = useState(false);
   const w = warehouse.data;
   useEffect(() => {
@@ -65,16 +64,14 @@ export default function WarehouseMapPage() {
     };
   }, [params, start, w?.revision]);
   const storage = w?.locations.filter((l) => l.can_store && l.active) || [];
-  async function showLocationPath(location, rackGroup = null) {
+  async function showLocationPath(location) {
     setRouteBusy(true);
     setRoute(null);
     setRouteFailure(null);
     setError("");
     try {
       const [next, current] = await Promise.all([
-        rackGroup
-          ? warehouseService.rackRoute(rackGroup, start)
-          : warehouseService.route(location.id, start),
+        warehouseService.route(location.id, start),
         warehouseService.get(),
       ]);
       if (next.revision !== current.revision)
@@ -139,39 +136,6 @@ export default function WarehouseMapPage() {
               Layout revision <strong>{w.revision}</strong>
             </span>
           </div>
-          <Card title="Rack destination">
-            <div className="card-body rack-picker">
-              <div role="group" aria-label="Rack destination">
-                {["A", "B", "C"].map((value) => (
-                  <button
-                    className={`btn ${rack === value ? "btn-primary" : "btn-secondary"}`}
-                    key={value}
-                    aria-pressed={rack === value}
-                    onClick={() => {
-                      setRack(value);
-                      setSelected(null);
-                      setRoute(null);
-                      setRouteParcel(null);
-                    }}
-                  >
-                    Rack {value}
-                  </button>
-                ))}
-              </div>
-              {!selected && (
-                <Button
-                  loading={routeBusy}
-                  onClick={() => showLocationPath(null, rack)}
-                >
-                  Show Best Path
-                </Button>
-              )}
-              <p className="muted">
-                Routes to the nearest reachable location in the selected rack
-                group.
-              </p>
-            </div>
-          </Card>
           <div className="map-layout">
             <Card
               title={routeParcel ? routeParcel.code : w.name}
@@ -210,7 +174,6 @@ export default function WarehouseMapPage() {
                       setError("");
                     } else {
                       setSelected(cell.id);
-                      setRack(null);
                       setRoute(null);
                       setRouteParcel(null);
                     }

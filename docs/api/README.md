@@ -43,7 +43,6 @@ Source: [server/src/routes/warehouseRoutes.js](../../server/src/routes/warehouse
 | GET    | `/warehouse`                     | S      | Read or atomically replace versioned layout.        |
 | GET    | `/warehouse/locations/:id/route` | S      | Route to a storage location.                        |
 | PUT    | `/warehouse`                     | M      | Read or atomically replace versioned layout.        |
-| GET    | `/warehouse/racks/:rack/route`   | S      | Route to rack group using existing routing service. |
 
 ### Transaction
 

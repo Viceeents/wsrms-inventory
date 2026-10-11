@@ -349,7 +349,7 @@ Tracked source/configuration/reference inventory at this update. Build output, d
 | [highAvailabilityService.js](../../server/src/services/highAvailabilityService.js) | Read-only interpretation of optional external fenced HA monitors.                        |
 | [notificationService.js](../../server/src/services/notificationService.js)         | Event visibility, capacity alerts, configuration and read-state operations.              |
 | [parcelService.js](../../server/src/services/parcelService.js)                     | Check-in, correction, transfer, retrieve, verify and dispatch invariants.                |
-| [pathfindingService.js](../../server/src/services/pathfindingService.js)           | Storage/group routes, pickup points and independent return paths.                        |
+| [pathfindingService.js](../../server/src/services/pathfindingService.js)           | Storage routes, pickup points and independent return paths.                        |
 | [qrService.js](../../server/src/services/qrService.js)                             | Parcel-code label/QR supporting behavior.                                                |
 | [reportService.js](../../server/src/services/reportService.js)                     | Operational aggregates, timezone-aware activity and CSV preparation.                     |
 | [storageService.js](../../server/src/services/storageService.js)                   | Compatible reachable storage candidates and rack-first ordering.                         |

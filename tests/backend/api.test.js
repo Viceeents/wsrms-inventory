@@ -855,7 +855,8 @@ test("Backup creation, failure monitoring, and restore permissions do not change
   await staff.post("/api/admin/database/backups").expect(403);
   await staff.post("/api/admin/database/restore").send({}).expect(403);
   const before = await get("SELECT COUNT(*) AS count FROM parcels");
-  const initialHealth = (await admin.get("/api/admin/database").expect(200)).body;
+  const initialHealth = (await admin.get("/api/admin/database").expect(200))
+    .body;
   assert.equal(
     initialHealth.primary.status,
     "Online",
@@ -1247,17 +1248,23 @@ test("Message history is bounded and older pages have no duplicates", async () =
   assert.equal(earlier.hasMore, false);
 });
 
-test("Rack group paths use the existing router and validate destinations", async () => {
+test("Individual storage routes remain available after removing rack group routing", async () => {
+  const warehouse = (await staff.get("/api/warehouse").expect(200)).body;
   for (const rack of ["A", "B", "C"]) {
+    const location = warehouse.locations.find((l) =>
+      l.code.startsWith(`${rack}-`),
+    );
+    assert.ok(location);
     const result = (
-      await staff.get(`/api/warehouse/racks/${rack}/route`).expect(200)
+      await staff
+        .get(`/api/warehouse/locations/${location.id}/route`)
+        .expect(200)
     ).body;
-    assert.equal(result.rackLabel, `Rack ${rack}`);
-    assert.ok(result.locationCode.startsWith(`${rack}-`));
+    assert.equal(result.locationId, location.id);
     assert.ok(result.inbound.path.length);
     assert.equal(result.totalSteps, result.inboundSteps + result.returnSteps);
+    await staff.get(`/api/warehouse/racks/${rack}/route`).expect(404);
   }
-  await staff.get("/api/warehouse/racks/Z/route").expect(400);
 });
 
 test("Existing databases apply the pending manager migration", async () => {
