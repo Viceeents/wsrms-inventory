@@ -384,20 +384,22 @@ export default function LayoutEditorPage() {
                             />
                           </Field>
                         ))}
-                        <Field label="Maximum total weight (kg)">
-                          <input
-                            type="number"
-                            min="0.1"
-                            max="100000"
-                            value={location.max_weight}
-                            onChange={(e) =>
-                              changeLocation(
-                                "max_weight",
-                                Number(e.target.value),
-                              )
-                            }
-                          />
-                        </Field>
+                        {location.storage_type === "rack" && (
+                          <Field label="Maximum total weight (kg)">
+                            <input
+                              type="number"
+                              min="0.1"
+                              max="100000"
+                              value={location.max_weight}
+                              onChange={(e) =>
+                                changeLocation(
+                                  "max_weight",
+                                  Number(e.target.value),
+                                )
+                              }
+                            />
+                          </Field>
+                        )}
                         <Field label="Maximum parcel size">
                           <select
                             value={location.max_size}

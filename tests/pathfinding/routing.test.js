@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import buildGraph from "../../server/src/algorithms/buildGraph.js";
 import dijkstra from "../../server/src/algorithms/dijkstra.js";
 import { routeToLocation } from "../../server/src/services/pathfindingService.js";
-import { fitsLocation } from "../../server/src/algorithms/storageScoring.js";
+import storageScoring, {
+  fitsLocation,
+} from "../../server/src/algorithms/storageScoring.js";
 import {
   directDatabaseUrl,
   postgresPoolConfig,
@@ -271,4 +273,56 @@ test("Rack and floor storage use the same capacity and compatibility checks", ()
     false,
   );
   assert.equal(fitsLocation({ ...l, active: false }, p), false);
+});
+
+test("Floor storage ignores weight limits while racks enforce them", () => {
+  const location = {
+    status: "Available",
+    active: true,
+    can_store: true,
+    availability: "Available",
+    occupancy: 1,
+    used_units: 1,
+    capacity: 10,
+    unit_capacity: 10,
+    max_size: "Large",
+    used_weight: 500,
+    max_weight: 10,
+    category_id: null,
+  };
+  const parcel = { size: "Small", quantity: 1, weight: 200, category_id: 1 };
+  const floor = { ...location, storage_type: "floor_storage" };
+  assert.equal(fitsLocation(floor, parcel), true);
+  assert.equal(
+    fitsLocation({ ...location, storage_type: "rack" }, parcel),
+    false,
+  );
+  assert.equal(fitsLocation({ ...floor, occupancy: 10 }, parcel), false);
+  assert.equal(fitsLocation({ ...floor, used_units: 10 }, parcel), false);
+  assert.equal(
+    fitsLocation(floor, parcel, { floor_storage_enabled: false }),
+    false,
+  );
+});
+
+test("Floor recommendation scores ignore weight utilization", () => {
+  const floor = {
+    storage_type: "floor_storage",
+    occupancy: 1,
+    capacity: 10,
+    used_units: 1,
+    unit_capacity: 10,
+    used_weight: 5,
+    max_weight: 10,
+    category_id: 1,
+  };
+  const parcel = { category_id: 1 };
+  assert.equal(
+    storageScoring(floor, parcel, 2),
+    storageScoring({ ...floor, used_weight: 5000 }, parcel, 2),
+  );
+  assert.ok(
+    storageScoring({ ...floor, storage_type: "rack" }, parcel, 2) >
+      storageScoring(floor, parcel, 2),
+  );
 });

@@ -9,7 +9,7 @@ export function enrichLocation(l) {
   const utilization = Math.max(
     l.occupancy / l.capacity,
     l.used_units / l.unit_capacity,
-    l.used_weight / l.max_weight,
+    l.storage_type === "rack" ? l.used_weight / l.max_weight : 0,
   );
   return {
     ...l,

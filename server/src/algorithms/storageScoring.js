@@ -16,8 +16,9 @@ export function fitsLocation(
     location.occupancy + parcel.quantity <= location.capacity &&
     location.used_units + sizeUnits[parcel.size] * parcel.quantity <=
       location.unit_capacity &&
-    location.used_weight + parcel.weight * parcel.quantity <=
-      location.max_weight &&
+    (location.storage_type !== "rack" ||
+      location.used_weight + parcel.weight * parcel.quantity <=
+        location.max_weight) &&
     (!location.category_id || location.category_id === parcel.category_id)
   );
 }
@@ -25,7 +26,9 @@ export default function storageScoring(location, parcel, cost) {
   const occupancy = Math.max(
     location.occupancy / location.capacity,
     location.used_units / location.unit_capacity,
-    location.used_weight / location.max_weight,
+    location.storage_type === "rack"
+      ? location.used_weight / location.max_weight
+      : 0,
   );
   return Number(
     (

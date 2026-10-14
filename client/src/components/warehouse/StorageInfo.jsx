@@ -65,7 +65,10 @@ export default function StorageInfo({
         <div>
           <dt>Weight</dt>
           <dd>
-            {Number(location.used_weight).toFixed(1)} / {location.max_weight} kg
+            {Number(location.used_weight).toFixed(1)}
+            {location.storage_type === "rack"
+              ? ` / ${location.max_weight} kg`
+              : " kg ? No weight limit"}
           </dd>
         </div>
         <div>

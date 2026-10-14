@@ -166,7 +166,7 @@ export async function update(req, res) {
           if (
             l.capacity < old.occupancy ||
             l.unit_capacity < old.used_units ||
-            l.max_weight < old.used_weight
+            (l.storage_type === "rack" && l.max_weight < old.used_weight)
           )
             throw new HttpError(
               409,

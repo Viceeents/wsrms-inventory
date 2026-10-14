@@ -93,7 +93,10 @@ export default function InventoryPage() {
                 <Progress value={l.utilization * 100} />
                 <p className="muted text-xs mt-3">
                   {l.used_units}/{l.unit_capacity} size units ·{" "}
-                  {Number(l.used_weight).toFixed(1)}/{l.max_weight} kg
+                  {Number(l.used_weight).toFixed(1)}
+                  {l.storage_type === "rack"
+                    ? `/${l.max_weight} kg`
+                    : " kg ? No weight limit"}
                 </p>
                 <div className="rack-card-footer">
                   <span>
