@@ -19,6 +19,10 @@ export default function LabelPreview({ parcel, onReady }) {
           <h3 className="mono">{parcel.code}</h3>
           <p>{parcel.description}</p>
           <dl>
+            <div className="label-tracking">
+              <dt>External tracking number</dt>
+              <dd className="mono">{parcel.tracking_number || "—"}</dd>
+            </div>
             <div>
               <dt>Category</dt>
               <dd>{parcel.category_name}</dd>

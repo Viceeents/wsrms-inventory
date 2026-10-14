@@ -1522,6 +1522,17 @@ input[type="color"] {
   gap: 15px;
   align-items: center;
 }
+.label-center > div {
+  min-width: 0;
+}
+.label-center dl > .label-tracking {
+  display: block;
+  margin-bottom: 6px;
+}
+.label-tracking dd {
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
 .label-center h3 {
   font-size: 1rem;
   white-space: nowrap;
