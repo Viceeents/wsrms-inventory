@@ -1,10 +1,10 @@
-import { Menu, ChevronDown, CalendarDays, Bell } from "lucide-react";
+import { Menu, CalendarDays, Bell } from "lucide-react";
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
 import useApi from "../../hooks/useApi";
 import { navGroups } from "./Sidebar";
 import formatDate from "../../utils/formatDate";
-export default function Header({ onMenu }) {
+export default function Header({ onMenu, warehouse, warehouseName }) {
   const notifications = useApi("/notifications", { poll: true });
   useEffect(() => {
     window.addEventListener("notifications-updated", notifications.reload);
@@ -41,18 +41,29 @@ export default function Header({ onMenu }) {
             <span>{notifications.data.unread}</span>
           )}
         </Link>
-        <span className="live-indicator">
-          <span />
-          Live workspace
+        <span className="live-indicator" role="status">
+          <span
+            style={{
+              background: warehouse.error
+                ? "#dc2626"
+                : warehouse.loading
+                  ? "#d97706"
+                  : "#16a34a",
+            }}
+          />
+          {warehouse.error
+            ? "Connection issue"
+            : warehouse.loading
+              ? "Syncing workspace"
+              : "Workspace ready"}
         </span>
         <span className="topbar-date">
           <CalendarDays size={15} />
           {formatDate(new Date(), { time: false })}
         </span>
-        <span className="warehouse-selector">
-          Main warehouse
-          <ChevronDown size={14} />
-        </span>
+        <Link to="/warehouse" className="warehouse-selector">
+          {warehouseName}
+        </Link>
       </div>
     </header>
   );

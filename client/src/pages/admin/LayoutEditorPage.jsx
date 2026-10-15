@@ -116,6 +116,7 @@ export default function LayoutEditorPage() {
     setError("");
     try {
       const w = await warehouseService.save(draft);
+      window.dispatchEvent(new CustomEvent("warehouse-updated", { detail: w }));
       recovery.clear();
       warehouse.setData(w);
       setWarnings(w.warnings || []);

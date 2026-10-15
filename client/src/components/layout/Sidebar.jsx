@@ -73,7 +73,7 @@ export const navGroups = [
     ],
   },
 ];
-export default function Sidebar({ open, onClose }) {
+export default function Sidebar({ open, onClose, warehouseName }) {
   const { user, logout } = useAuth();
   return (
     <>
@@ -94,7 +94,8 @@ export default function Sidebar({ open, onClose }) {
         <div className="workspace-pill">
           <span className="online-dot" />
           <div>
-            Main warehouse<small>Operations workspace</small>
+            {warehouseName}
+            <small>Operations workspace</small>
           </div>
           <span className="workspace-count">01</span>
         </div>
